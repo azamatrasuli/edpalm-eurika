@@ -364,6 +364,7 @@ class TestCheckPendingPayments:
                 "id": "order-1",
                 "dms_order_uuid": "uuid-1",
                 "conversation_id": "conv-1",
+                "actor_id": "test:actor",
                 "amocrm_lead_id": 500,
                 "product_name": "Экстернат",
                 "amount_kopecks": 5000000,

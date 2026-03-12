@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from app.config import get_settings
+from app.db.events import EventTracker
 from app.db.repository import ConversationRepository
 
 logger = logging.getLogger("services.followup")
@@ -102,6 +103,10 @@ def process_pending_followups() -> None:
                 content=text,
             )
             repo.update_followup_status(f["id"], "sent", sent_at=now)
+            EventTracker().track_followup(
+                f["conversation_id"], f.get("actor_id", ""), step,
+                payment_order_id=str(f.get("payment_order_id", "")),
+            )
             logger.info("Follow-up step %d sent for conv=%s", step, f["conversation_id"])
 
             # Send Telegram push if user has telegram_id

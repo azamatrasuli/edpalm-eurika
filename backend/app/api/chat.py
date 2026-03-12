@@ -18,6 +18,7 @@ from app.models.chat import (
     StartConversationRequest,
     StartConversationResponse,
 )
+from app.db.events import EventTracker
 from app.services.chat import ChatService
 from app.services.imbox import ImBoxService
 from app.services.llm import LLMChunk, ToolCallEvent
@@ -30,6 +31,7 @@ auth_service = AuthService()
 chat_service = ChatService()
 speech_service = SpeechService()
 imbox_service = ImBoxService()
+event_tracker = EventTracker()
 
 
 def _sse(event: str, payload: dict) -> str:
@@ -139,6 +141,11 @@ def _make_stream(
 
         chat_service.repo.update_conversation_status(ctx.conversation.id, "escalated")
         _notify_manager(reason, actor, ctx.conversation.id, answer)
+        event_tracker.track_escalation(
+            ctx.conversation.id, actor.actor_id, reason,
+            channel=actor.channel.value,
+            agent_role=getattr(actor, "agent_role", "sales"),
+        )
         yield _sse("escalation", {"reason": reason, "manager_notified": True})
 
     yield _sse("done", {"text": answer, "usage_tokens": usage_tokens})
@@ -153,6 +160,15 @@ def start_conversation(req: StartConversationRequest) -> StartConversationRespon
     ctx = chat_service.ensure_conversation(actor, conversation_id=req.conversation_id)
     # Generate greeting only for new conversations (no history)
     if not ctx.history:
+        agent_role_val = actor.agent_role.value if hasattr(actor.agent_role, "value") else str(actor.agent_role)
+        event_tracker.track(
+            "conversation_started",
+            conversation_id=ctx.conversation.id,
+            actor_id=actor.actor_id,
+            channel=actor.channel.value,
+            agent_role=agent_role_val,
+            data={"channel": actor.channel.value, "agent_role": agent_role_val},
+        )
         greeting = chat_service.generate_greeting(actor, ctx.conversation.id)
     else:
         # For resumed conversations, use the first assistant message as greeting

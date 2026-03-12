@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # --- Escalation ---
     manager_telegram_chat_id: str = Field(default="", alias="MANAGER_TELEGRAM_CHAT_ID")
 
+    # --- Dashboard ---
+    dashboard_api_key: str = Field(default="", alias="DASHBOARD_API_KEY")
+
     @property
     def cors_origins(self) -> list[str]:
         return [x.strip() for x in self.app_cors_origins.split(",") if x.strip()]

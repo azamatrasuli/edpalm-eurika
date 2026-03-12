@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.config import get_settings
+from app.db.events import EventTracker
 from app.db.repository import ConversationRepository
 from app.integrations.amocrm import AmoCRMClient
 from app.integrations.dms import get_dms_service, _normalize_phone, _format_phone_dms
@@ -314,6 +315,7 @@ class ToolExecutor:
         self.conversation_id = conversation_id
         self.agent_role = agent_role
         self.repo = repo or ConversationRepository()
+        self.events = EventTracker()
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
         logger.info("Executing tool: %s args=%s", tool_name, arguments)
@@ -321,9 +323,24 @@ class ToolExecutor:
             handler = getattr(self, f"_tool_{tool_name}", None)
             if handler is None:
                 return ToolResult(name=tool_name, result=f"Unknown tool: {tool_name}")
-            return handler(**arguments)
+            result = handler(**arguments)
+            # Track tool call event
+            self.events.track_tool_call(
+                self.conversation_id,
+                self.actor_id or "",
+                tool_name,
+                arguments,
+                result.result[:200],
+                not result.result.startswith("Ошибка"),
+                agent_role=self.agent_role,
+            )
+            return result
         except Exception as e:
             logger.exception("Tool execution error: %s", tool_name)
+            self.events.track_tool_call(
+                self.conversation_id, self.actor_id or "", tool_name,
+                arguments, str(e)[:200], False, agent_role=self.agent_role,
+            )
             return ToolResult(name=tool_name, result=f"Ошибка при выполнении: {e}")
 
     # ---- tool implementations ---------------------------------------------
@@ -331,6 +348,9 @@ class ToolExecutor:
     def _tool_search_knowledge_base(self, query: str) -> ToolResult:
         chunks = search_knowledge_base(query, namespace=self.agent_role)
         if not chunks:
+            self.events.track_rag_miss(
+                self.conversation_id, self.actor_id or "", query, self.agent_role,
+            )
             return ToolResult(
                 name="search_knowledge_base",
                 result="В базе знаний не найдено релевантной информации по запросу: " + query,

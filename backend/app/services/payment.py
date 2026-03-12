@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from app.db.events import EventTracker
 from app.db.repository import ConversationRepository
 from app.integrations.amocrm import AmoCRMClient
 from app.integrations.dms import DMSServiceBase, ProductCatalog, _normalize_phone, _format_phone_dms
@@ -127,6 +128,16 @@ class PaymentService:
             except Exception:
                 logger.exception("Failed to create follow-up chain")
 
+        # Track payment_generated event
+        EventTracker().track_payment(
+            "payment_generated",
+            conversation_id=conversation_id,
+            actor_id=actor_id,
+            order_uuid=order.order_uuid,
+            amount_kopecks=product.price_kopecks,
+            product_name=product.name,
+        )
+
         return {
             "success": True,
             "order_uuid": order.order_uuid,
@@ -168,6 +179,16 @@ def check_pending_payments() -> None:
                 repo.update_payment_status(order["id"], "paid", paid_at=now)
                 logger.info("Payment confirmed: order=%s uuid=%s",
                             order["id"], order["dms_order_uuid"])
+
+                # Track payment_confirmed event
+                EventTracker().track_payment(
+                    "payment_confirmed",
+                    conversation_id=order.get("conversation_id"),
+                    actor_id=order.get("actor_id", ""),
+                    order_uuid=order["dms_order_uuid"],
+                    amount_kopecks=order.get("amount_kopecks", 0),
+                    product_name=order.get("product_name"),
+                )
 
                 # Cancel follow-ups
                 repo.cancel_followups_for_conversation(order["conversation_id"])
