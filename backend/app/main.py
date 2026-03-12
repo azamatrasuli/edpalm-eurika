@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse
 
 from app.api.chat import router as chat_router
 from app.api.onboarding import router as onboarding_router
+from app.api.renewal import router as renewal_router
+from app.api.telegram import router as telegram_router
 from app.config import get_settings
 from app.db.pool import close_pool, init_pool
 
@@ -22,7 +24,10 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_pool()
+    from app.services.scheduler import start_scheduler, stop_scheduler
+    start_scheduler()
     yield
+    stop_scheduler()
     close_pool()
 
 
@@ -62,3 +67,9 @@ def health():
 
 app.include_router(chat_router)
 app.include_router(onboarding_router)
+app.include_router(renewal_router)
+app.include_router(telegram_router)
+
+# Alias: amoCRM Chat API webhook registered without /v1 prefix
+from app.api.chat import amocrm_chat_webhook as _wh  # noqa: E402
+app.post("/api/amocrm/chat/webhook/{scope_id}", include_in_schema=False)(_wh)

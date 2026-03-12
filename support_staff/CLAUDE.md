@@ -19,8 +19,8 @@
 
 | Здание (портал) | Роль Эврики | amoCRM pipeline |
 |---|---|---|
-| Магазин | Менеджер по продажам | Sales `10490514` |
-| Секретарь / Поддержка | Менеджер КС | Service `10490518` |
+| Магазин | Менеджер по продажам | Sales `10689842` |
+| Секретарь / Поддержка | Менеджер КС | Service `10689990` |
 
 Бэкенд загружает нужный system prompt и набор инструментов по `agent_role`.
 
@@ -54,12 +54,12 @@ support_staff/
 
 | Инструмент | Статус | Описание |
 |---|---|---|
-| `search_knowledge_base` | Готов | RAG-поиск по FAQ поддержки |
+| `search_knowledge_base` | Готов | RAG-поиск по FAQ поддержки (namespace: support, 44 чанка) |
+| `get_client_profile` | Готов (Sprint 1) | Профиль из DMS: ФИО, тариф, класс, статус, школа |
 | `create_amocrm_ticket` | Готов | Создать обращение в Service pipeline |
 | `escalate_to_manager` | Готов | Передать менеджеру + уведомление в Telegram |
 
-Планируемые (Sprint 3+):
-- `get_client_profile` — профиль из DMS (тариф, класс, статус)
+Планируемые (Sprint 4+):
 - `send_telegram_notification` — уведомления клиентам
 - `notify_manager_cs` — алерты менеджерам КС
 - `collect_nps` — оценка 1-5 после закрытия
@@ -84,9 +84,9 @@ support_staff/
 
 | Система | Описание | Статус |
 |---|---|---|
-| amoCRM | Обращения в Service pipeline `10490518` | Готов (402 блокер на запись) |
-| DMS | Профиль клиента: тариф, класс, статус зачисления | Блокер: нет credentials |
-| Supabase | PostgreSQL: conversations, chat_messages, knowledge_chunks | Готов |
+| amoCRM | Обращения в Service pipeline `10689990` | Готов |
+| DMS | Профиль клиента: ФИО, тариф, класс, статус, школа | Готов (Sprint 1) |
+| Supabase | PostgreSQL: conversations, chat_messages, knowledge_chunks | Готов (region: ap-southeast-2) |
 | Telegram | Уведомления клиентам + алерты менеджерам КС | Готов |
 
 ---
@@ -95,8 +95,8 @@ support_staff/
 
 | Спринт | Даты | Фокус | Статус |
 |---|---|---|---|
-| 1 | 06.04 – 13.04 | Переключение ролей | — |
-| 2 | 13.04 – 20.04 | База знаний КС + FAQ | — |
+| 1 | 06.04 – 13.04 | Переключение ролей, DMS профиль, RAG support | Done |
+| 2 | 13.04 – 20.04 | База знаний КС + FAQ | Следующий |
 | 3 | 20.04 – 04.05 | Онбординг + DMS интеграция | — |
 | 4 | 04.05 – 18.05 | Авто-уведомления + алерты | — |
 | 5 | 18.05 – 01.06 | Чек-листы + ГИА | — |
@@ -118,6 +118,4 @@ PYTHONPATH=. python -m app.rag.loader --namespace support --dir ../support_staff
 
 | Блокер | Спринт |
 |---|---|
-| **amoCRM подписка (402)** — только GET работает | Sprint 1 |
-| **DMS credentials** — нет учётки для агента | Sprint 3 |
 | **Чек-листы от заказчика** — содержание процессов | Sprint 5 |

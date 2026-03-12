@@ -26,7 +26,7 @@ class TestParseContact:
             "name": "Ivan Petrov",
             "custom_fields_values": [
                 {"field_code": "PHONE", "values": [{"value": "+79991234567"}]},
-                {"field_id": 1396311, "values": [{"value": "987654"}]},
+                {"field_id": 1404988, "values": [{"value": "987654"}]},
             ],
         }
         contact = client._parse_contact(raw)
@@ -50,12 +50,12 @@ class TestParseLead:
         raw = {
             "id": 789,
             "name": "Test Deal",
-            "pipeline_id": 10490514,
+            "pipeline_id": 10689842,
             "status_id": 100,
             "price": 50000,
             "custom_fields_values": [
-                {"field_id": 1396313, "values": [{"value": "Экстернат Классный"}]},
-                {"field_id": 1396315, "values": [{"value": "54500"}]},
+                {"field_id": 1404990, "values": [{"value": "Экстернат Классный"}]},
+                {"field_id": 1404992, "values": [{"value": "54500"}]},
             ],
             "_embedded": {"contacts": [{"id": 123}]},
         }
@@ -64,7 +64,7 @@ class TestParseLead:
         assert lead.product_name == "Экстернат Классный"
         assert lead.amount == 54500
         assert lead.contact_id == 123
-        assert lead.pipeline_id == 10490514
+        assert lead.pipeline_id == 10689842
 
     def test_handles_no_custom_fields(self):
         client = AmoCRMClient()

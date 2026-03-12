@@ -1,8 +1,13 @@
 import { OnboardingButtons } from './OnboardingButtons'
 import { OnboardingForm } from './OnboardingForm'
+import { PaymentCard } from './PaymentCard'
 import { ProfileCard } from './ProfileCard'
 
 export function OnboardingMessage({ message, onButtonClick, onFormSubmit }) {
+  if (message.type === 'payment') {
+    return <PaymentCard data={message.paymentData} />
+  }
+
   if (message.type === 'buttons') {
     return (
       <div>

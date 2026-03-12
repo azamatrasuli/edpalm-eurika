@@ -33,15 +33,15 @@ class Settings(BaseSettings):
     session_signing_secret: str = Field(default="replace_me", alias="SESSION_SIGNING_SECRET")
 
     # --- amoCRM ---
-    amocrm_subdomain: str = Field(default="azaprimemat", alias="AMOCRM_SUBDOMAIN")
+    amocrm_subdomain: str = Field(default="azamatrasuli", alias="AMOCRM_SUBDOMAIN")
     amocrm_client_id: str = Field(default="", alias="AMOCRM_CLIENT_ID")
     amocrm_client_secret: str = Field(default="", alias="AMOCRM_CLIENT_SECRET")
     amocrm_redirect_uri: str = Field(default="http://localhost:8009/api/v1/amocrm/oauth/callback", alias="AMOCRM_REDIRECT_URI")
-    amocrm_sales_pipeline_id: int = Field(default=10490514, alias="AMOCRM_SALES_PIPELINE_ID")
-    amocrm_service_pipeline_id: int = Field(default=10490518, alias="AMOCRM_SERVICE_PIPELINE_ID")
-    amocrm_telegram_id_field: int = Field(default=1396311, alias="AMOCRM_TELEGRAM_ID_FIELD")
-    amocrm_product_field: int = Field(default=1396313, alias="AMOCRM_PRODUCT_FIELD")
-    amocrm_amount_field: int = Field(default=1396315, alias="AMOCRM_AMOUNT_FIELD")
+    amocrm_sales_pipeline_id: int = Field(default=10689842, alias="AMOCRM_SALES_PIPELINE_ID")
+    amocrm_service_pipeline_id: int = Field(default=10689990, alias="AMOCRM_SERVICE_PIPELINE_ID")
+    amocrm_telegram_id_field: int = Field(default=1404988, alias="AMOCRM_TELEGRAM_ID_FIELD")
+    amocrm_product_field: int = Field(default=1404990, alias="AMOCRM_PRODUCT_FIELD")
+    amocrm_amount_field: int = Field(default=1404992, alias="AMOCRM_AMOUNT_FIELD")
 
     # --- amoCRM Chat API (imBox) ---
     amocrm_chat_channel_id: str = Field(default="", alias="AMOCRM_CHAT_CHANNEL_ID")

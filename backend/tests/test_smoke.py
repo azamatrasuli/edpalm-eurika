@@ -9,14 +9,20 @@ import urllib.parse
 
 import jwt
 
-from fastapi.testclient import TestClient
-
-os.environ.setdefault("EXTERNAL_LINK_SECRET", "test_secret")
-os.environ.setdefault("PORTAL_JWT_SECRET", "test_portal")
-os.environ.setdefault("SESSION_SIGNING_SECRET", "test_session")
+# Force test secrets BEFORE any app imports — override real .env values
+os.environ["EXTERNAL_LINK_SECRET"] = "test_secret"
+os.environ["PORTAL_JWT_SECRET"] = "test_portal"
+os.environ["SESSION_SIGNING_SECRET"] = "test_session"
+os.environ["TELEGRAM_BOT_TOKEN"] = "test_tg_token"
 os.environ.setdefault("OPENAI_API_KEY", "")
-os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_tg_token")
+os.environ.setdefault("AMOCRM_CLIENT_ID", "test_id")
+os.environ.setdefault("AMOCRM_CLIENT_SECRET", "test_secret")
 
+# Clear cached settings so they pick up our test env vars
+from app.config import get_settings
+get_settings.cache_clear()
+
+from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 
 client = TestClient(app)

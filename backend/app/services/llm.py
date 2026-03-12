@@ -25,6 +25,7 @@ class ToolCallEvent:
     """Yielded when a tool is executed (informational for the SSE consumer)."""
     name: str
     result: str
+    payment_data: dict | None = None
 
 
 @dataclass
@@ -227,7 +228,11 @@ class LLMService:
                             "result": result.result[:500],
                         })
 
-                        yield ToolCallEvent(name=tc["name"], result=result.result)
+                        yield ToolCallEvent(
+                            name=tc["name"],
+                            result=result.result,
+                            payment_data=result.payment_data,
+                        )
 
                         if result.is_escalation:
                             escalation_triggered = True

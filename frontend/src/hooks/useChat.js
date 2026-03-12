@@ -119,6 +119,19 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
             )
           }
 
+          if (event === 'payment_card') {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: '',
+                type: 'payment',
+                paymentData: payload,
+              },
+            ])
+          }
+
           if (event === 'escalation') {
             setEscalated(true)
             setEscalationReason(payload.reason || '')

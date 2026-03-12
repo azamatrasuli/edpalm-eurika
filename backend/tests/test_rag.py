@@ -45,8 +45,8 @@ class TestParseMarkdown:
     def test_h1_and_plain_text_before_first_heading(self):
         md = "# Title\nIntro paragraph\n\n## Real Section\nBody"
         sections = parse_markdown(md)
-        # Intro goes under default heading "Введение"
-        assert sections[0].heading == "Введение"
+        # h1 "Title" becomes the heading, intro text is its content
+        assert sections[0].heading == "Title"
         assert "Intro paragraph" in sections[0].content
         assert sections[1].heading == "Real Section"
 

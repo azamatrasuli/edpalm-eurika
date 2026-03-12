@@ -467,6 +467,236 @@ class ConversationRepository:
             logger.warning("Failed to get user profile for actor=%s", actor_id, exc_info=True)
             return None
 
+    # ---- Payment orders ----------------------------------------------------
+
+    def save_payment_order(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        dms_order_uuid: str,
+        amount_kopecks: int,
+        payment_url: str,
+        product_name: str | None = None,
+        product_uuid: str | None = None,
+        dms_contact_id: int | None = None,
+        pay_type: int = 1,
+        amocrm_lead_id: int | None = None,
+    ) -> str | None:
+        if not self._has_db():
+            return None
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return None
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO agent_payment_orders
+                          (conversation_id, actor_id, dms_order_uuid, amount_kopecks,
+                           payment_url, product_name, product_uuid, dms_contact_id,
+                           pay_type, amocrm_lead_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (conversation_id, actor_id, dms_order_uuid, amount_kopecks,
+                         payment_url, product_name, product_uuid, dms_contact_id,
+                         pay_type, amocrm_lead_id),
+                    )
+                    row = cur.fetchone()
+                conn.commit()
+                return str(row["id"]) if row else None
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to save payment order", exc_info=True)
+            return None
+
+    def get_pending_payments(self) -> list[dict]:
+        if not self._has_db():
+            return []
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return []
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, conversation_id, actor_id, dms_order_uuid,
+                               product_name, amocrm_lead_id, created_at
+                        FROM agent_payment_orders
+                        WHERE status = 'pending'
+                          AND created_at > NOW() - INTERVAL '8 days'
+                        ORDER BY created_at
+                        """
+                    )
+                    rows = cur.fetchall()
+                    return [dict(r) for r in rows] if rows else []
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to get pending payments", exc_info=True)
+            return []
+
+    def update_payment_status(self, order_id: str, status: str, paid_at: datetime | None = None) -> None:
+        if not self._has_db():
+            return
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE agent_payment_orders
+                        SET status = %s, paid_at = %s, updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (status, paid_at, order_id),
+                    )
+                conn.commit()
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to update payment status", exc_info=True)
+
+    # ---- Follow-up chain ---------------------------------------------------
+
+    def save_followup(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        payment_order_id: str | None,
+        step: int,
+        next_fire_at: datetime,
+    ) -> str | None:
+        if not self._has_db():
+            return None
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return None
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO agent_followup_chain
+                          (conversation_id, actor_id, payment_order_id, step, next_fire_at)
+                        VALUES (%s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (conversation_id, actor_id, payment_order_id, step, next_fire_at),
+                    )
+                    row = cur.fetchone()
+                conn.commit()
+                return str(row["id"]) if row else None
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to save followup", exc_info=True)
+            return None
+
+    def get_pending_followups(self) -> list[dict]:
+        if not self._has_db():
+            return []
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return []
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT f.id, f.conversation_id, f.actor_id, f.step,
+                               f.payment_order_id,
+                               p.product_name, p.status AS payment_status,
+                               p.payment_url,
+                               u.fio AS actor_name
+                        FROM agent_followup_chain f
+                        LEFT JOIN agent_payment_orders p ON p.id = f.payment_order_id
+                        LEFT JOIN agent_user_profiles u ON u.actor_id = f.actor_id
+                        WHERE f.status = 'pending'
+                          AND f.next_fire_at <= NOW()
+                        ORDER BY f.next_fire_at
+                        """
+                    )
+                    rows = cur.fetchall()
+                    return [dict(r) for r in rows] if rows else []
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to get pending followups", exc_info=True)
+            return []
+
+    def update_followup_status(self, followup_id: str, status: str, sent_at: datetime | None = None) -> None:
+        if not self._has_db():
+            return
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE agent_followup_chain
+                        SET status = %s, sent_at = %s
+                        WHERE id = %s
+                        """,
+                        (status, sent_at, followup_id),
+                    )
+                conn.commit()
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to update followup status", exc_info=True)
+
+    def cancel_followups_for_conversation(self, conversation_id: str) -> int:
+        """Cancel all pending follow-ups for a conversation. Returns count cancelled."""
+        if not self._has_db():
+            return 0
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return 0
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE agent_followup_chain
+                        SET status = 'cancelled'
+                        WHERE conversation_id = %s AND status = 'pending'
+                        """,
+                        (conversation_id,),
+                    )
+                    count = cur.rowcount
+                conn.commit()
+                if count:
+                    logger.info("Cancelled %d follow-ups for conv=%s", count, conversation_id)
+                return count
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to cancel followups for conv=%s", conversation_id, exc_info=True)
+            return 0
+
+    def update_conversation_metadata(self, conversation_id: str, metadata: dict) -> None:
+        """Merge metadata into the conversation's existing metadata JSON."""
+        if not self._has_db():
+            return
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """UPDATE conversations
+                           SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                           WHERE id = %s""",
+                        (Json(metadata), conversation_id),
+                    )
+                    conn.commit()
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to update conversation metadata for %s", conversation_id, exc_info=True)
+
+    def get_conversation_metadata(self, conversation_id: str) -> dict | None:
+        if not self._has_db():
+            return None
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return None
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT metadata FROM conversations WHERE id = %s",
+                        (conversation_id,),
+                    )
+                    row = cur.fetchone()
+                    return row["metadata"] if row and row.get("metadata") else None
+        except (psycopg.Error, OSError):
+            return None
+
     # ---- in-memory fallback -----------------------------------------------
 
     def _start_or_resume_memory(self, actor: ActorContext, conversation_id: str | None) -> StoredConversation:

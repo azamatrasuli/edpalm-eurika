@@ -20,7 +20,7 @@ export function ChatWindow({ messages, avatarProps, typing, onButtonClick, onFor
     }
   }, [messages, typing])
 
-  const visibleMessages = messages.filter((m) => m.content !== '' || m.type === 'buttons' || m.type === 'form' || m.type === 'card')
+  const visibleMessages = messages.filter((m) => m.content !== '' || m.type === 'buttons' || m.type === 'form' || m.type === 'card' || m.type === 'payment')
 
   return (
     <div

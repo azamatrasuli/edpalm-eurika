@@ -73,6 +73,12 @@ def _make_stream(
     chat_service.save_user_message(ctx.conversation.id, user_text)
     imbox_service.forward_user_message(actor, user_text)
 
+    # Cancel pending follow-ups when user replies
+    try:
+        chat_service.repo.cancel_followups_for_conversation(ctx.conversation.id)
+    except Exception:
+        logger.debug("No follow-ups to cancel for conv=%s", ctx.conversation.id)
+
     meta_payload = {
         "conversation_id": ctx.conversation.id,
         "actor_id": actor.actor_id,
@@ -103,6 +109,8 @@ def _make_stream(
                 yield _sse("token", {"text": event.token})
             elif isinstance(event, ToolCallEvent):
                 yield _sse("tool_call", {"name": event.name})
+                if event.payment_data:
+                    yield _sse("payment_card", event.payment_data)
     except StopIteration as stop:
         result = stop.value
         if result:

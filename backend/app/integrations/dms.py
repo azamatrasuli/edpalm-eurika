@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -47,6 +48,27 @@ class DMSSearchResult:
     students: list[DMSStudent] = field(default_factory=list)
 
 
+@dataclass
+class DMSProduct:
+    product_id: int
+    uuid: str
+    name: str
+    price_kopecks: int
+    grade: int | None = None
+    product_group: int | None = None
+    study_year: str | None = None
+    is_active: bool = True
+
+
+@dataclass
+class DMSOrder:
+    order_uuid: str
+    order_id: int | None = None
+    status: int = 0  # 0=draft, 1=pending, 2=paid, 4=refund
+    amount_kopecks: int = 0
+    payment_url: str | None = None
+
+
 def _normalize_phone(phone: str) -> str:
     """Strip non-digits and replace leading 8 with 7."""
     digits = "".join(c for c in phone if c.isdigit())
@@ -79,6 +101,22 @@ class DMSServiceBase(ABC):
 
     @abstractmethod
     def get_students_by_contact(self, contact_id: int) -> list[DMSStudent]:
+        ...
+
+    @abstractmethod
+    def get_products(self) -> list[DMSProduct]:
+        ...
+
+    @abstractmethod
+    def create_order(self, payer_contact_id: int, positions: list[dict]) -> DMSOrder | None:
+        ...
+
+    @abstractmethod
+    def get_payment_link(self, order_uuid: str, pay_type: int = 1) -> str | None:
+        ...
+
+    @abstractmethod
+    def get_order_status(self, order_uuid: str) -> int | None:
         ...
 
 
@@ -179,6 +217,24 @@ class MockDMSService(DMSServiceBase):
             if result.contact.contact_id == contact_id:
                 return result.students
         return []
+
+    def get_products(self) -> list[DMSProduct]:
+        return [
+            DMSProduct(product_id=1, uuid="mock-uuid-1", name="Экстернат Базовый 5 класс", price_kopecks=3500000, grade=5),
+            DMSProduct(product_id=2, uuid="mock-uuid-2", name="Экстернат Классный 5 класс", price_kopecks=5450000, grade=5),
+            DMSProduct(product_id=3, uuid="mock-uuid-3", name="Экстернат Классный 7 класс", price_kopecks=5450000, grade=7),
+        ]
+
+    def create_order(self, payer_contact_id: int, positions: list[dict]) -> DMSOrder | None:
+        import uuid as _uuid
+        total = sum(p.get("amount", 0) for p in positions)
+        return DMSOrder(order_uuid=str(_uuid.uuid4()), order_id=9999, status=0, amount_kopecks=total)
+
+    def get_payment_link(self, order_uuid: str, pay_type: int = 1) -> str | None:
+        return f"https://mock-payment.example.com/pay/{order_uuid}"
+
+    def get_order_status(self, order_uuid: str) -> int | None:
+        return 0  # always draft in mock
 
 
 class RealDMSService(DMSServiceBase):
@@ -349,6 +405,175 @@ class RealDMSService(DMSServiceBase):
         except Exception:
             logger.exception("DMS get_student_info error")
             return None
+
+    def get_products(self) -> list[DMSProduct]:
+        """Fetch full product catalog from DMS."""
+        try:
+            resp = self._request("GET", "/v1/api/products")
+            if resp.status_code != 200:
+                logger.error("DMS get_products failed: %d %s", resp.status_code, resp.text)
+                return []
+            data = resp.json()
+            products = []
+            for p in data.get("products", []):
+                grade = p.get("grade")
+                if grade is None:
+                    grade = self._extract_grade_from_product(p.get("name"))
+                products.append(DMSProduct(
+                    product_id=p.get("id", 0),
+                    uuid=p.get("uuid", ""),
+                    name=p.get("name", ""),
+                    price_kopecks=p.get("price", 0),
+                    grade=int(grade) if grade is not None else None,
+                    product_group=p.get("productGroup") or p.get("product_group"),
+                    study_year=p.get("studyYearName") or p.get("study_year_name"),
+                    is_active=p.get("isActive", True),
+                ))
+            logger.info("DMS: fetched %d products", len(products))
+            return products
+        except Exception:
+            logger.exception("DMS get_products error")
+            return []
+
+    def create_order(self, payer_contact_id: int, positions: list[dict]) -> DMSOrder | None:
+        """Create an order in DMS. positions: [{product_uuid, amount, student_contact_id}]."""
+        try:
+            order_positions = []
+            for pos in positions:
+                position = {
+                    "product_uuid": pos["product_uuid"],
+                    "amount": pos["amount"],
+                    "currency": "RUB",
+                }
+                if pos.get("student_contact_id"):
+                    position["student"] = {"uuid": str(pos["student_contact_id"])}
+                order_positions.append(position)
+
+            payload = {
+                "payer": {"id": payer_contact_id},
+                "positions": order_positions,
+                "status": 0,
+                "holding_id": 1,
+            }
+            resp = self._request("POST", "/v1/api/orders", json=payload)
+            if resp.status_code not in (200, 201):
+                logger.error("DMS create_order failed: %d %s", resp.status_code, resp.text)
+                return None
+            data = resp.json()
+            order_uuid = data.get("uuid", "")
+            total = sum(pos["amount"] for pos in positions)
+            logger.info("DMS: created order uuid=%s", order_uuid)
+            return DMSOrder(
+                order_uuid=order_uuid,
+                order_id=data.get("id"),
+                status=data.get("status", 0),
+                amount_kopecks=total,
+            )
+        except Exception:
+            logger.exception("DMS create_order error")
+            return None
+
+    def get_payment_link(self, order_uuid: str, pay_type: int = 1) -> str | None:
+        """Generate a payment link for an order. pay_type: 0=SBP, 1=Card."""
+        try:
+            resp = self._request(
+                "POST", "/v1/api/payment/link",
+                json={"id": order_uuid, "pay_type": pay_type},
+            )
+            if resp.status_code != 200:
+                logger.error("DMS get_payment_link failed: %d %s", resp.status_code, resp.text)
+                return None
+            data = resp.json()
+            link = data.get("link", "")
+            logger.info("DMS: payment link generated for order=%s", order_uuid)
+            return link
+        except Exception:
+            logger.exception("DMS get_payment_link error")
+            return None
+
+    def get_order_status(self, order_uuid: str) -> int | None:
+        """Get order status: 0=draft, 1=pending, 2=paid, 4=refund."""
+        try:
+            resp = self._request("GET", f"/v1/api/orders/{order_uuid}")
+            if resp.status_code != 200:
+                logger.error("DMS get_order_status failed: %d %s", resp.status_code, resp.text)
+                return None
+            data = resp.json()
+            return data.get("status")
+        except Exception:
+            logger.exception("DMS get_order_status error")
+            return None
+
+
+class ProductCatalog:
+    """Cached product catalog with fuzzy matching by name and grade."""
+
+    CACHE_TTL = 3600  # 1 hour
+
+    def __init__(self, dms: DMSServiceBase) -> None:
+        self._dms = dms
+        self._cache: list[DMSProduct] = []
+        self._cache_time: float = 0
+
+    def _ensure_cache(self) -> list[DMSProduct]:
+        if self._cache and (time.time() - self._cache_time) < self.CACHE_TTL:
+            return self._cache
+        self._cache = self._dms.get_products()
+        self._cache_time = time.time()
+        return self._cache
+
+    def find_product(self, name: str, grade: int) -> DMSProduct | None:
+        """Find a product by name keywords and grade. Returns best match or None."""
+        products = self._ensure_cache()
+        if not products:
+            return None
+
+        name_lower = name.lower()
+        # Extract tariff keywords
+        tariff_keywords = {
+            "базовый": "базовый",
+            "классный": "классный",
+            "заочный": "заочный",
+            "персональный": "персональный",
+        }
+        target_tariff = None
+        for kw, tariff in tariff_keywords.items():
+            if kw in name_lower:
+                target_tariff = tariff
+                break
+
+        best: DMSProduct | None = None
+        best_score = -1
+
+        for p in products:
+            if not p.is_active:
+                continue
+            p_lower = p.name.lower()
+            score = 0
+            # Grade match is critical
+            if p.grade == grade:
+                score += 10
+            elif p.grade is not None:
+                continue  # wrong grade, skip
+            # Tariff match
+            if target_tariff and target_tariff in p_lower:
+                score += 5
+            elif target_tariff:
+                continue  # wrong tariff, skip
+            # General keyword overlap
+            for word in name_lower.split():
+                if len(word) > 2 and word in p_lower:
+                    score += 1
+            if score > best_score:
+                best_score = score
+                best = p
+
+        if best:
+            logger.info("ProductCatalog: matched '%s' grade=%d → %s (uuid=%s, %d коп.)",
+                        name, grade, best.name, best.uuid, best.price_kopecks)
+        else:
+            logger.warning("ProductCatalog: no match for '%s' grade=%d", name, grade)
+        return best
 
 
 def get_dms_service() -> DMSServiceBase:

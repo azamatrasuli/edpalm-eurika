@@ -73,10 +73,10 @@ eurika/
 
 ## Ключевые интеграции
 
-**amoCRM** (Sprint 3, код готов)
-- Subdomain: `azaprimemat`
-- Sales pipeline: `10490514` / Service pipeline: `10490518`
-- Custom fields: Telegram ID `1396311`, Product `1396313`, Amount `1396315`
+**amoCRM** (Sprint 3, полностью работает)
+- Subdomain: `azamatrasuli`
+- Sales pipeline: `10689842` / Service pipeline: `10689990`
+- Custom fields: Telegram ID `1404988`, Product `1404990`, Amount `1404992`
 - OAuth токены в `amocrm_tokens` (shared с TG ботом)
 
 **Supabase (PostgreSQL)** — shared между AI Agent и Node.js TG Bot
@@ -85,8 +85,10 @@ eurika/
 - Shared: `amocrm_tokens`
 
 **DMS API** — Go backend (`/dms-main`). REST API.
-- Блокер: нет credentials для service account
-- Auth: `POST /v1/api/auth` → JWT
+- Auth: `POST /v1/api/auth` → JWT (пароль хешируется SHA-256 с солью)
+- Ответы в camelCase (`accessToken`, `moodleId`, `enrollmentSchool`)
+- Телефоны в формате `8 (XXX) XXX-XX-XX`
+- Цепочка профиля: contacts/search → POST /students → ученики с product/state
 - Клиенты, заказы, платёжные ссылки
 
 **LMS (Moodle)** — через DMS, не напрямую.
@@ -110,8 +112,8 @@ eurika/
 
 | Спринт | Даты | Статус |
 |---|---|---|
-| 1 — Переключение ролей | 06.04 – 13.04 | — |
-| 2 — База знаний КС | 13.04 – 20.04 | — |
+| 1 — Переключение ролей + DMS + RAG | 06.04 – 13.04 | Done |
+| 2 — База знаний КС | 13.04 – 20.04 | Следующий |
 | 3 — Онбординг + DMS | 20.04 – 04.05 | — |
 | 4 — Уведомления | 04.05 – 18.05 | — |
 | 5 — Чек-листы + ГИА | 18.05 – 01.06 | — |
@@ -152,6 +154,4 @@ PYTHONPATH=. python -m app.rag.loader --namespace support --dir ../support_staff
 
 | Блокер | Влияет на |
 |---|---|
-| **amoCRM подписка (402)** — только GET работает, код интеграции готов | Все роли |
-| **DMS credentials** — нет учётки для агента | Продавец Sprint 3-4, Поддержка Sprint 3 |
 | **Чек-листы от заказчика** — содержание процессов | Поддержка Sprint 5 |

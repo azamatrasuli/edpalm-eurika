@@ -77,8 +77,8 @@ seller_staff/
 
 | Система | Описание | Статус |
 |---|---|---|
-| amoCRM | Контакты, сделки, примечания. Pipeline sales: `10490514` | Готов (402 блокер на запись) |
-| DMS | Go-бэкенд: профиль клиента, заказы, платёжные ссылки | Блокер: нет credentials |
+| amoCRM | Контакты, сделки, примечания. Pipeline sales: `10689842` | Готов |
+| DMS | Go-бэкенд: профиль клиента, заказы, платёжные ссылки | Готов |
 | LMS (Moodle) | Через DMS API, не напрямую | — |
 | Supabase | PostgreSQL: conversations, chat_messages, knowledge_chunks, amocrm_tokens | Готов |
 | Telegram | Mini App для клиентов + уведомления менеджерам | Готов |
@@ -111,5 +111,4 @@ PYTHONPATH=. python -m app.rag.loader --namespace sales --dir ../seller_staff/kn
 
 | Блокер | Спринт |
 |---|---|
-| **amoCRM подписка (402)** — аккаунт заблокирован, только GET работает | Sprint 3 |
-| **DMS credentials** — нет учётки для агента | Sprint 3-4 |
+| Нет текущих блокеров | — |

@@ -155,6 +155,18 @@ class ChatService:
         # Load onboarding profile context for LLM
         profile_context = self.onboarding.get_profile_context_for_llm(actor.actor_id)
 
+        # Check for renewal scenario context
+        if conversation_id:
+            conv_meta = self.repo.get_conversation_metadata(conversation_id)
+            if conv_meta and conv_meta.get("scenario_type") == "renewal":
+                renewal_ctx = (
+                    f"Сценарий: пролонгация\n"
+                    f"Ученик: {conv_meta.get('student_name', '—')}\n"
+                    f"Текущий продукт: {conv_meta.get('current_product', '—')}\n"
+                    f"Класс: {conv_meta.get('grade', '—')}"
+                )
+                profile_context = (profile_context + "\n\n" + renewal_ctx) if profile_context else renewal_ctx
+
         return self.llm.stream_answer(
             user_text=user_text,
             actor=actor,

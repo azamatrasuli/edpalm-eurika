@@ -104,7 +104,7 @@ class TestCRMTools:
         )
         mock_crm.create_lead.return_value = AmoCRMLead(
             id=300, name="AI-Агент: Экстернат — Maria",
-            pipeline_id=10490514, status_id=1, price=54500,
+            pipeline_id=10689842, status_id=1, price=54500,
         )
         executor = ToolExecutor(amocrm_client=mock_crm)
         result = executor.execute("create_amocrm_lead", {

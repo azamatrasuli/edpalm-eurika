@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8009'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+  || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://127.0.0.1:8009'
+    : 'https://edpalm-eurika.onrender.com')
 
 export async function startConversation(auth, conversationId = null, agentRole = 'sales') {
   const body = { auth, agent_role: agentRole }

@@ -136,6 +136,39 @@ SALES_TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "generate_payment_link",
+            "description": (
+                "Сгенерировать ссылку на оплату обучения. "
+                "Вызывай ТОЛЬКО когда клиент подтвердил выбор продукта и готов оплатить. "
+                "НЕ вызывай для тарифа Персональный — веди к консультации с менеджером."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_name": {
+                        "type": "string",
+                        "description": "Название продукта (например, 'Экстернат Классный 5 класс')",
+                    },
+                    "grade": {
+                        "type": "integer",
+                        "description": "Класс ученика (1-11)",
+                    },
+                    "student_name": {
+                        "type": "string",
+                        "description": "ФИО ученика (если известно)",
+                    },
+                    "payer_phone": {
+                        "type": "string",
+                        "description": "Телефон плательщика",
+                    },
+                },
+                "required": ["product_name", "grade", "payer_phone"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "escalate_to_manager",
             "description": (
                 "Передать диалог живому менеджеру. Вызывай ОБЯЗАТЕЛЬНО если: "
@@ -257,6 +290,7 @@ class ToolResult:
     result: str
     is_escalation: bool = False
     escalation_reason: str | None = None
+    payment_data: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +505,53 @@ class ToolExecutor:
             name="get_client_profile",
             result=json.dumps(profile, ensure_ascii=False),
         )
+
+    def _tool_generate_payment_link(
+        self,
+        product_name: str,
+        grade: int,
+        payer_phone: str,
+        student_name: str | None = None,
+    ) -> ToolResult:
+        """Generate a payment link via DMS: product lookup → order → link."""
+        from app.services.payment import PaymentService
+
+        payment_svc = PaymentService(dms=self.dms, repo=self.repo, crm=self.crm)
+        result = payment_svc.create_payment(
+            actor_id=self.actor_id or "",
+            conversation_id=self.conversation_id or "",
+            product_name=product_name,
+            grade=grade,
+            payer_phone=payer_phone,
+            student_name=student_name,
+        )
+
+        if result.get("success"):
+            payment_data = {
+                "product_name": result["product_name"],
+                "amount_rub": result["amount_rub"],
+                "payment_url": result["payment_url"],
+                "order_uuid": result["order_uuid"],
+                "grade": result.get("grade"),
+            }
+            return ToolResult(
+                name="generate_payment_link",
+                result=json.dumps({
+                    "success": True,
+                    "product_name": result["product_name"],
+                    "amount_rub": result["amount_rub"],
+                    "message": "Ссылка на оплату сгенерирована. Клиент видит карточку оплаты.",
+                }, ensure_ascii=False),
+                payment_data=payment_data,
+            )
+        else:
+            return ToolResult(
+                name="generate_payment_link",
+                result=json.dumps({
+                    "success": False,
+                    "error": result.get("error", "Неизвестная ошибка"),
+                }, ensure_ascii=False),
+            )
 
     def _tool_create_amocrm_ticket(
         self,
