@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 function timeAgo(dateStr) {
   if (!dateStr) return ''
@@ -18,9 +18,22 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const inputRef = useRef(null)
+  const menuRef = useRef(null)
 
   const title = conversation.title || conversation.last_user_message || 'Новый чат'
   const time = timeAgo(conversation.updated_at)
+
+  // Close menu on click outside
+  useEffect(() => {
+    if (!menuOpen) return
+    function handleClick(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [menuOpen])
 
   function handleMenuToggle(e) {
     e.stopPropagation()
@@ -80,7 +93,7 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               onBlur={handleRenameBlur}
-              onKeyDown={(e) => e.key === 'Escape' && handleRenameCancel(e)}
+              onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
               className="w-full text-sm bg-transparent border-b border-brand outline-none py-0.5"
               maxLength={100}
             />
@@ -99,7 +112,7 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
       </div>
 
       {!editing && (
-        <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div ref={menuRef} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={handleMenuToggle}
             className="p-1 rounded hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"

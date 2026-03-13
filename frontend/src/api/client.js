@@ -64,13 +64,20 @@ async function readSSEStream(response, onEvent) {
   let buffer = ''
 
   while (true) {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('SSE_TIMEOUT')), SSE_TIMEOUT_MS),
-    )
-    const { value, done } = await Promise.race([reader.read(), timeout])
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    buffer = parseSSE(buffer, onEvent)
+    let timerId
+    const timeout = new Promise((_, reject) => {
+      timerId = setTimeout(() => reject(new Error('SSE_TIMEOUT')), SSE_TIMEOUT_MS)
+    })
+    try {
+      const { value, done } = await Promise.race([reader.read(), timeout])
+      clearTimeout(timerId)
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      buffer = parseSSE(buffer, onEvent)
+    } catch (e) {
+      clearTimeout(timerId)
+      throw e
+    }
   }
 }
 

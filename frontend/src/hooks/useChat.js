@@ -49,6 +49,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
     try {
       const data = await startConversation(auth, convId, agentRole, forceNew)
       setConversationId(data.conversation_id)
+      conversationIdRef.current = data.conversation_id
       const storageKey = getStorageKey(agentRole)
       sessionStorage.setItem(storageKey, data.conversation_id)
 
@@ -127,9 +128,9 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
 
   // --- Switch to an existing conversation ---
   const switchConversation = useCallback(async (convId) => {
-    if (convId === conversationId) return
+    if (convId === conversationIdRef.current) return
     await loadConversation(convId)
-  }, [conversationId, loadConversation])
+  }, [loadConversation])
 
   // --- Start a completely new conversation ---
   const startNewChat = useCallback(async () => {

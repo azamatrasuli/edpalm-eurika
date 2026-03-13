@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChatWindow } from '../components/ChatWindow'
 import { ConversationSidebar } from '../components/ConversationSidebar'
 import { EscalationBanner } from '../components/EscalationBanner'
@@ -120,9 +120,11 @@ export function ChatPage() {
   const convList = useConversationList(auth, agentRole)
 
   // Sync active conversation in sidebar
+  const setActiveIdRef = useRef(convList.setActiveId)
+  setActiveIdRef.current = convList.setActiveId
   useEffect(() => {
-    if (chat.conversationId && chat.conversationId !== convList.activeId) {
-      convList.setActiveId(chat.conversationId)
+    if (chat.conversationId) {
+      setActiveIdRef.current(chat.conversationId)
     }
   }, [chat.conversationId])
 

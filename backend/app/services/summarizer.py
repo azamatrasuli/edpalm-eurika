@@ -18,6 +18,16 @@ from app.services.memory import MemoryService
 
 logger = logging.getLogger("summarizer")
 
+_summarizer_client: OpenAI | None = None
+
+
+def _get_client() -> OpenAI:
+    global _summarizer_client
+    if _summarizer_client is None:
+        _summarizer_client = OpenAI(api_key=get_settings().openai_api_key)
+    return _summarizer_client
+
+
 SUMMARIZE_PROMPT = """\
 Проанализируй этот диалог между AI-агентом и клиентом и извлеки структурированную информацию.
 
@@ -50,7 +60,7 @@ def _format_messages(messages: list[ChatMessage]) -> str:
 
 def _embed_batch(texts: list[str], settings=None) -> list[list[float]]:
     settings = settings or get_settings()
-    client = OpenAI(api_key=settings.openai_api_key)
+    client = _get_client()
     response = client.embeddings.create(
         model=settings.openai_embedding_model,
         input=texts,
@@ -60,7 +70,7 @@ def _embed_batch(texts: list[str], settings=None) -> list[list[float]]:
 
 def _call_summarize_llm(messages: list[ChatMessage], settings=None) -> dict | None:
     settings = settings or get_settings()
-    client = OpenAI(api_key=settings.openai_api_key)
+    client = _get_client()
 
     formatted = _format_messages(messages)
     prompt = SUMMARIZE_PROMPT.format(messages=formatted)
