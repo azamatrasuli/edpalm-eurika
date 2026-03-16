@@ -259,13 +259,27 @@ class AmoCRMClient:
         return self._parse_contact(contacts[0]) if contacts else None
 
     def find_contact_by_telegram_id(self, telegram_id: str | int) -> AmoCRMContact | None:
+        tg_str = str(telegram_id)
         fid = self._settings.amocrm_telegram_id_field
+
+        # Try custom field filter first (works on most accounts)
         data = self._request(
             "GET", "/contacts",
-            params={f"filter[custom_fields_values][{fid}]": str(telegram_id)},
+            params={f"filter[custom_fields_values][{fid}]": tg_str},
         )
         contacts = (data or {}).get("_embedded", {}).get("contacts", [])
-        return self._parse_contact(contacts[0]) if contacts else None
+        if contacts:
+            return self._parse_contact(contacts[0])
+
+        # Fallback: query search + client-side filter by custom field value
+        data = self._request("GET", "/contacts", params={"query": tg_str})
+        for c in (data or {}).get("_embedded", {}).get("contacts", []):
+            for cf in c.get("custom_fields_values") or []:
+                if cf.get("field_id") == fid:
+                    val = (cf.get("values") or [{}])[0].get("value")
+                    if val and str(val) == tg_str:
+                        return self._parse_contact(c)
+        return None
 
     def create_contact(
         self, name: str, phone: str | None = None, telegram_id: str | None = None,
@@ -282,7 +296,12 @@ class AmoCRMClient:
         data = self._request("POST", "/contacts", payload)
         contacts = (data or {}).get("_embedded", {}).get("contacts", [])
         if contacts:
-            logger.info("Contact created: %d", contacts[0].get("id"))
+            contact_id = contacts[0].get("id")
+            logger.info("Contact created: %d", contact_id)
+            # POST response is sparse — re-fetch for full data
+            full = self._request("GET", f"/contacts/{contact_id}", params={"with": "custom_fields_values"})
+            if full and "id" in full:
+                return self._parse_contact(full)
             return self._parse_contact(contacts[0])
         return None
 
@@ -354,20 +373,25 @@ class AmoCRMClient:
         fields: list[dict] = []
         if product:
             fields.append({"field_id": self._settings.amocrm_product_field, "values": [{"value": product}]})
-        if amount:
+        if amount is not None:
             fields.append({"field_id": self._settings.amocrm_amount_field, "values": [{"value": str(amount)}]})
-        payload = [{
+        lead_body: dict = {
             "name": name,
             "pipeline_id": pid,
-            "price": amount,
-            "custom_fields_values": fields or None,
             "_embedded": {"contacts": [{"id": contact_id}]},
-        }]
+        }
+        if amount is not None:
+            lead_body["price"] = amount
+        if fields:
+            lead_body["custom_fields_values"] = fields
+        payload = [lead_body]
         data = self._request("POST", "/leads", payload)
         leads = (data or {}).get("_embedded", {}).get("leads", [])
         if leads:
-            logger.info("Lead created: %d for contact %d", leads[0].get("id"), contact_id)
-            return self._parse_lead(leads[0])
+            lead_id = leads[0].get("id")
+            logger.info("Lead created: %d for contact %d", lead_id, contact_id)
+            # POST response is sparse — re-fetch for full data
+            return self.get_lead(lead_id) or self._parse_lead(leads[0])
         return None
 
     def update_lead(
@@ -391,7 +415,11 @@ class AmoCRMClient:
             body["custom_fields_values"] = fields
         data = self._request("PATCH", "/leads", [body])
         leads = (data or {}).get("_embedded", {}).get("leads", [])
-        return self._parse_lead(leads[0]) if leads else None
+        if not leads:
+            return None
+        # PATCH response is sparse — re-fetch for full data
+        updated_id = leads[0].get("id", lead_id)
+        return self.get_lead(updated_id) or self._parse_lead(leads[0])
 
     def add_note(self, lead_id: int, text: str) -> bool:
         payload = [{"entity_id": lead_id, "note_type": "common", "params": {"text": text}}]

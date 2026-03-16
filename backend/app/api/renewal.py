@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.api.dashboard import _verify_dashboard_key
 from app.config import get_settings
 from app.db.repository import ConversationRepository
 from app.integrations.dms import get_dms_service
@@ -32,7 +33,7 @@ class RenewalResponse(BaseModel):
 
 
 @router.post("/renewal/trigger", response_model=RenewalResponse)
-def trigger_renewal(req: RenewalRequest) -> RenewalResponse:
+def trigger_renewal(req: RenewalRequest, _key: str = Depends(_verify_dashboard_key)) -> RenewalResponse:
     """
     Trigger a renewal conversation for an existing client.
     1. Look up client in DMS by phone

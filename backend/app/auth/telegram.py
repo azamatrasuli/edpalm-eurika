@@ -23,7 +23,10 @@ class TelegramAuth:
                 detail="TELEGRAM_BOT_TOKEN is not configured",
             )
 
-        parsed = urllib.parse.parse_qs(init_data, strict_parsing=True)
+        try:
+            parsed = urllib.parse.parse_qs(init_data, strict_parsing=True)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Malformed Telegram initData")
         flattened = {k: v[0] for k, v in parsed.items()}
 
         recv_hash = flattened.pop("hash", None)
@@ -52,7 +55,10 @@ class TelegramAuth:
         if not user_json:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Telegram initData has no user")
 
-        user = json.loads(user_json)
+        try:
+            user = json.loads(user_json)
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Telegram user data")
         tg_id = user.get("id")
         if not tg_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Telegram user id is missing")

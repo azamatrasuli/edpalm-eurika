@@ -38,6 +38,11 @@ def _sse(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def _escape_html(text: str) -> str:
+    """Escape HTML special characters for Telegram parse_mode=HTML."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _notify_manager(reason: str, actor, conversation_id: str, summary: str) -> None:
     """Send Telegram notification to manager about escalation."""
     settings = get_settings()
@@ -48,14 +53,14 @@ def _notify_manager(reason: str, actor, conversation_id: str, summary: str) -> N
         logger.warning("Manager Telegram notification not configured")
         return
 
-    display = actor.display_name or actor.actor_id
+    display = _escape_html(actor.display_name or actor.actor_id)
     text = (
         f"<b>Эскалация от AI-агента Эврика</b>\n\n"
         f"<b>Клиент:</b> {display}\n"
         f"<b>Канал:</b> {actor.channel.value}\n"
-        f"<b>Причина:</b> {reason}\n"
+        f"<b>Причина:</b> {_escape_html(reason)}\n"
         f"<b>ID диалога:</b> <code>{conversation_id}</code>\n\n"
-        f"<b>Последнее сообщение агента:</b>\n{summary[:800]}"
+        f"<b>Последнее сообщение агента:</b>\n{_escape_html(summary[:800])}"
     )
 
     try:
@@ -204,8 +209,14 @@ def chat_stream(req: ChatStreamRequest) -> StreamingResponse:
 
 
 @router.post("/chat/transcribe")
-async def chat_transcribe(audio: UploadFile = File(...)) -> dict:
+async def chat_transcribe(
+    audio: UploadFile = File(...),
+    auth_json: str = Form(...),
+) -> dict:
     """Accept audio, transcribe via Whisper, return text (no LLM call)."""
+    # Validate auth before consuming Whisper credits
+    auth = AuthPayload.model_validate_json(auth_json)
+    auth_service.resolve(auth)
     ext = (audio.filename or "audio.webm").rsplit(".", 1)[-1].lower()
     if ext not in ALLOWED_FORMATS:
         raise HTTPException(400, f"Unsupported format: {ext}")
@@ -269,7 +280,10 @@ async def amocrm_chat_webhook(scope_id: str, request: Request):
     body_str = body.decode("utf-8", errors="replace")
 
     signature = request.headers.get("X-Signature", "")
-    if signature and not imbox_service.client.verify_webhook_signature(body, signature):
+    if not signature:
+        logger.warning("amoCRM chat webhook missing X-Signature header")
+        return {"status": "signature_missing"}
+    if not imbox_service.client.verify_webhook_signature(body, signature):
         logger.warning("Invalid amoCRM chat webhook signature")
         return {"status": "signature_invalid"}
 

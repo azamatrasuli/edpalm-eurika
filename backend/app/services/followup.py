@@ -151,14 +151,17 @@ def _escalate_after_followup(followup: dict) -> None:
     if not chat_id or not bot_token:
         return
 
+    def _esc(s: str) -> str:
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
     product = followup.get("product_name", "—")
     actor_name = followup.get("actor_name", "—")
     conv_id = followup.get("conversation_id", "—")
 
     text = (
         f"<b>Follow-up: 3 напоминания без ответа</b>\n\n"
-        f"<b>Клиент:</b> {actor_name}\n"
-        f"<b>Продукт:</b> {product}\n"
+        f"<b>Клиент:</b> {_esc(actor_name)}\n"
+        f"<b>Продукт:</b> {_esc(product)}\n"
         f"<b>ID диалога:</b> <code>{conv_id}</code>\n\n"
         "Рекомендуется связаться с клиентом лично."
     )

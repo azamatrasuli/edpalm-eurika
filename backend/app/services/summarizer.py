@@ -159,8 +159,21 @@ def summarize_conversation(
     if llm_title:
         conv_repo.update_conversation_title(conversation_id, llm_title[:100])
 
-    # Mark conversation as summarized
-    conv_repo.update_conversation_status(conversation_id, "summarized")
+    # Mark conversation as summarized only if archived (not actively used)
+    try:
+        from app.db.pool import get_connection
+        with get_connection() as conn:
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT archived_at FROM conversations WHERE id = %s",
+                        (conversation_id,),
+                    )
+                    row = cur.fetchone()
+                    if row and row["archived_at"] is not None:
+                        conv_repo.update_conversation_status(conversation_id, "summarized")
+    except Exception:
+        pass  # Non-critical — summary is saved regardless
 
     # Invalidate cached memory so next message picks up new facts
     try:

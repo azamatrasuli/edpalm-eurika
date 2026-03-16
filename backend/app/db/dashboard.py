@@ -35,7 +35,7 @@ class DashboardRepository:
                     return self._empty_metrics()
                 with conn.cursor() as cur:
                     # Conversations
-                    where = "WHERE c.started_at >= %s AND c.started_at < %s + INTERVAL '1 day'"
+                    where = "WHERE c.created_at >= %s AND c.created_at < %s + INTERVAL '1 day'"
                     params: list = [date_from, date_to]
                     if channel:
                         where += " AND c.channel = %s"
@@ -48,8 +48,8 @@ class DashboardRepository:
                         f"""
                         SELECT
                           COUNT(*) AS total,
-                          COUNT(*) FILTER (WHERE c.ended_at IS NULL AND c.status != 'escalated') AS active,
-                          COUNT(*) FILTER (WHERE c.ended_at IS NOT NULL) AS completed,
+                          COUNT(*) FILTER (WHERE c.archived_at IS NULL AND c.status != 'escalated') AS active,
+                          COUNT(*) FILTER (WHERE c.archived_at IS NOT NULL) AS completed,
                           COUNT(*) FILTER (WHERE c.status = 'escalated') AS escalated
                         FROM conversations c
                         {where}
@@ -120,13 +120,13 @@ class DashboardRepository:
                     cur.execute(
                         f"""
                         SELECT
-                          c.started_at::date AS day,
+                          c.created_at::date AS day,
                           COUNT(*) AS conversations,
                           COALESCE(SUM(po.amount_kopecks) FILTER (WHERE po.status = 'paid'), 0) AS gmv_kopecks
                         FROM conversations c
                         LEFT JOIN agent_payment_orders po ON po.conversation_id = c.id AND po.status = 'paid'
                         {where}
-                        GROUP BY c.started_at::date
+                        GROUP BY c.created_at::date
                         ORDER BY day
                         """,
                         params,
@@ -191,15 +191,15 @@ class DashboardRepository:
                 if conn is None:
                     return {"items": [], "total": 0, "page": page, "per_page": per_page}
                 with conn.cursor() as cur:
-                    where = "WHERE c.started_at >= %s AND c.started_at < %s + INTERVAL '1 day'"
+                    where = "WHERE c.created_at >= %s AND c.created_at < %s + INTERVAL '1 day'"
                     params: list = [date_from, date_to]
                     if channel:
                         where += " AND c.channel = %s"
                         params.append(channel)
                     if status == "active":
-                        where += " AND c.ended_at IS NULL AND c.status != 'escalated'"
+                        where += " AND c.archived_at IS NULL AND c.status != 'escalated'"
                     elif status == "completed":
-                        where += " AND c.ended_at IS NOT NULL"
+                        where += " AND c.archived_at IS NOT NULL"
                     elif status == "escalated":
                         where += " AND c.status = 'escalated'"
 
@@ -211,13 +211,13 @@ class DashboardRepository:
                         f"""
                         SELECT
                           c.id, c.actor_id, c.channel, c.agent_role, c.status,
-                          c.display_name, c.started_at, c.ended_at,
+                          c.title, c.created_at, c.archived_at,
                           (SELECT COUNT(*) FROM chat_messages m WHERE m.conversation_id = c.id) AS message_count,
                           EXISTS(SELECT 1 FROM agent_payment_orders po WHERE po.conversation_id = c.id) AS has_payment,
                           (SELECT po.status FROM agent_payment_orders po WHERE po.conversation_id = c.id ORDER BY po.created_at DESC LIMIT 1) AS payment_status
                         FROM conversations c
                         {where}
-                        ORDER BY c.started_at DESC
+                        ORDER BY c.created_at DESC
                         LIMIT %s OFFSET %s
                         """,
                         params + [per_page, offset],
@@ -230,9 +230,9 @@ class DashboardRepository:
                             "channel": r["channel"],
                             "agent_role": r.get("agent_role", "sales"),
                             "status": r.get("status"),
-                            "display_name": r.get("display_name"),
-                            "started_at": r["started_at"].isoformat() if r["started_at"] else None,
-                            "ended_at": r["ended_at"].isoformat() if r.get("ended_at") else None,
+                            "display_name": r.get("title"),
+                            "started_at": r["created_at"].isoformat() if r["created_at"] else None,
+                            "ended_at": r["archived_at"].isoformat() if r.get("archived_at") else None,
                             "message_count": r["message_count"],
                             "has_payment": r["has_payment"],
                             "payment_status": r.get("payment_status"),
