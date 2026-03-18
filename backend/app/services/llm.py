@@ -74,6 +74,19 @@ class LLMService:
                 parts.append(f"- Сумма: {deal['amount']} руб.")
         return "\n".join(parts)
 
+    def _kb_fallback(self, tool_calls: list[dict]) -> str | None:
+        """If KB search results exist from tool calls, return them as a direct answer."""
+        for tc in tool_calls:
+            if tc.get("name") == "search_knowledge_base" and tc.get("result"):
+                result = tc["result"]
+                if "Источник:" in result and "не найдено" not in result.lower():
+                    return (
+                        "Вот что я нашла в базе знаний:\n\n"
+                        + result[:1500]
+                        + "\n\nЕсли нужна дополнительная информация — спрашивайте!"
+                    )
+        return None
+
     def _fallback_text(self, role: str = "sales") -> str:
         if role == "support":
             return (
@@ -255,10 +268,11 @@ class LLMService:
 
                 # Edge case: no text and no tool calls
                 if not full_text:
-                    fallback = self._fallback_text(agent_role)
+                    fallback = self._kb_fallback(all_tool_calls_made) or self._fallback_text(agent_role)
                     for ch in fallback:
                         yield LLMChunk(token=ch)
-                    return LLMResult(text=fallback, usage_tokens=total_tokens)
+                    return LLMResult(text=fallback, usage_tokens=total_tokens,
+                                     rag_metadata={"tool_calls": all_tool_calls_made, "escalation": escalation_triggered})
 
                 # Text without tool calls (shouldn't reach here, but safety)
                 return LLMResult(
@@ -274,10 +288,11 @@ class LLMService:
                 rate_limit_retries += 1
                 if rate_limit_retries > max_rate_limit_retries:
                     logger.error("Rate limit: max retries (%d) exceeded", max_rate_limit_retries)
-                    fallback = self._fallback_text(agent_role)
+                    fallback = self._kb_fallback(all_tool_calls_made) or self._fallback_text(agent_role)
                     for ch in fallback:
                         yield LLMChunk(token=ch)
-                    return LLMResult(text=fallback, usage_tokens=None)
+                    return LLMResult(text=fallback, usage_tokens=None,
+                                     rag_metadata={"tool_calls": all_tool_calls_made, "escalation": escalation_triggered})
                 retry_after = getattr(e, "retry_after", None) or 5
                 logger.warning(
                     "Rate limit on iteration %d (retry %d/%d), waiting %.1fs",
@@ -288,10 +303,11 @@ class LLMService:
 
             except Exception:
                 logger.exception("LLM streaming error on iteration %d", iteration)
-                fallback = self._fallback_text(agent_role)
+                fallback = self._kb_fallback(all_tool_calls_made) or self._fallback_text(agent_role)
                 for ch in fallback:
                     yield LLMChunk(token=ch)
-                return LLMResult(text=fallback, usage_tokens=None)
+                return LLMResult(text=fallback, usage_tokens=None,
+                                 rag_metadata={"tool_calls": all_tool_calls_made, "escalation": escalation_triggered})
 
         # Max iterations exceeded
         fallback = "Извините, возникла сложность с обработкой запроса. Попробуйте переформулировать вопрос."
