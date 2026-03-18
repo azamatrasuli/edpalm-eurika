@@ -9,6 +9,22 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.auth.service import AuthService
+
+_TOOL_LABELS = {
+    "search_knowledge_base": "Ищу в базе знаний...",
+    "get_amocrm_contact": "Проверяю данные клиента...",
+    "get_amocrm_deal": "Проверяю активные сделки...",
+    "create_amocrm_lead": "Создаю заявку...",
+    "update_deal_stage": "Обновляю статус заявки...",
+    "get_client_profile": "Загружаю профиль клиента...",
+    "generate_payment_link": "Готовлю ссылку на оплату...",
+    "escalate_to_manager": "Подключаю менеджера...",
+    "create_amocrm_ticket": "Создаю обращение...",
+}
+
+
+def _tool_label(name: str) -> str:
+    return _TOOL_LABELS.get(name, "Обрабатываю...")
 from app.config import get_settings
 from app.models.chat import (
     AgentRole,
@@ -59,7 +75,7 @@ def _notify_manager(reason: str, actor, conversation_id: str, summary: str) -> N
         f"<b>Клиент:</b> {display}\n"
         f"<b>Канал:</b> {actor.channel.value}\n"
         f"<b>Причина:</b> {_escape_html(reason)}\n"
-        f"<b>ID диалога:</b> <code>{conversation_id}</code>\n\n"
+        f"<b>ID диалога:</b> <code>{_escape_html(conversation_id)}</code>\n\n"
         f"<b>Последнее сообщение агента:</b>\n{_escape_html(summary[:800])}"
     )
 
@@ -115,14 +131,19 @@ def _make_stream(
                 full_text.append(event.token)
                 yield _sse("token", {"text": event.token})
             elif isinstance(event, ToolCallEvent):
-                yield _sse("tool_call", {"name": event.name})
+                logger.info("SSE: tool_call event: %s", event.name)
+                label = _tool_label(event.name)
+                yield _sse("tool_call", {"name": event.name, "label": label})
                 if event.payment_data:
                     yield _sse("payment_card", event.payment_data)
     except StopIteration as stop:
+        logger.info("SSE: generator finished (StopIteration)")
         result = stop.value
         if result:
             usage_tokens = result.usage_tokens
             rag_metadata = result.rag_metadata
+    except Exception as exc:
+        logger.exception("SSE: generator error: %s", exc)
 
     answer = "".join(full_text).strip()
     if not answer:

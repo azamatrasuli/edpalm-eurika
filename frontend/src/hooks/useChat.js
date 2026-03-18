@@ -164,10 +164,18 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
             sessionStorage.setItem(storageKey, payload.conversation_id)
           }
 
+          if (event === 'tool_call') {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, toolStatus: payload.label || 'Обрабатываю...', content: '' } : m,
+              ),
+            )
+          }
+
           if (event === 'token') {
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === assistantId ? { ...m, content: `${m.content}${payload.text || ''}` } : m,
+                m.id === assistantId ? { ...m, toolStatus: null, content: `${m.content}${payload.text || ''}` } : m,
               ),
             )
           }

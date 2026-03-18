@@ -20,7 +20,7 @@ export function ChatWindow({ messages, avatarProps, typing, onButtonClick, onFor
     }
   }, [messages, typing])
 
-  const visibleMessages = messages.filter((m) => m.content !== '' || m.type === 'buttons' || m.type === 'form' || m.type === 'card' || m.type === 'payment')
+  const visibleMessages = messages.filter((m) => m.content !== '' || m.toolStatus || m.type === 'buttons' || m.type === 'form' || m.type === 'card' || m.type === 'payment')
 
   return (
     <div
@@ -58,6 +58,11 @@ export function ChatWindow({ messages, avatarProps, typing, onButtonClick, onFor
                   onButtonClick={onButtonClick}
                   onFormSubmit={onFormSubmit}
                 />
+              ) : message.toolStatus && !message.content ? (
+                <div className="flex items-center gap-2 text-secondary text-sm">
+                  <span className="w-2 h-2 rounded-full bg-brand animate-[status-pulse_1.5s_infinite]" />
+                  {message.toolStatus}
+                </div>
               ) : message.role === 'assistant' ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {message.content}
