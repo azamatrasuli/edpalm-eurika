@@ -516,7 +516,11 @@ class RealDMSService(DMSServiceBase):
                 return None
             data = resp.json()
             link = data.get("link", "")
-            logger.info("DMS: payment link generated for order=%s", order_uuid)
+            # Proxy orders have callbacks pointing to prod (dms.hss.center).
+            # Replace with proxy domain so Tochka redirects correctly.
+            if self.base_url and "proxy.hss.center" in self.base_url:
+                link = link.replace("dms.hss.center", "proxy.hss.center")
+            logger.info("DMS: payment link generated for order=%s link=%s", order_uuid, link)
             return link
         except Exception:
             logger.exception("DMS get_payment_link error")
