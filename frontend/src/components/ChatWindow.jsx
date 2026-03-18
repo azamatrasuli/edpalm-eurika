@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { OnboardingMessage } from './OnboardingMessage'
 
-export function ChatWindow({ messages, avatarProps, typing, onButtonClick, onFormSubmit }) {
+export function ChatWindow({ messages, avatarProps, typing, toolStatus, onButtonClick, onFormSubmit }) {
   const containerRef = useRef(null)
   const bottomRef = useRef(null)
   const userScrolledUp = useRef(false)
@@ -84,10 +84,19 @@ export function ChatWindow({ messages, avatarProps, typing, onButtonClick, onFor
               {...avatarProps}
             />
           )}
-          <div className="flex items-center gap-[5px] bg-card px-4 py-3 rounded-2xl rounded-tl-[2px] shadow-card">
-            <span className="w-[7px] h-[7px] rounded-full bg-dot animate-[typing-bounce_1.2s_infinite_ease-in-out]" />
-            <span className="w-[7px] h-[7px] rounded-full bg-dot animate-[typing-bounce_1.2s_infinite_ease-in-out] [animation-delay:0.15s]" />
-            <span className="w-[7px] h-[7px] rounded-full bg-dot animate-[typing-bounce_1.2s_infinite_ease-in-out] [animation-delay:0.3s]" />
+          <div className="bg-card px-4 py-3 rounded-2xl rounded-tl-[2px] shadow-card">
+            {toolStatus ? (
+              <div className="flex items-center gap-2 text-secondary text-sm">
+                <span className="w-2 h-2 rounded-full bg-brand animate-[status-pulse_1.5s_infinite]" />
+                {toolStatus}
+              </div>
+            ) : (
+              <div className="flex items-center gap-[5px]">
+                <span className="w-[7px] h-[7px] rounded-full bg-dot animate-[typing-bounce_1.2s_infinite_ease-in-out]" />
+                <span className="w-[7px] h-[7px] rounded-full bg-dot animate-[typing-bounce_1.2s_infinite_ease-in-out] [animation-delay:0.15s]" />
+                <span className="w-[7px] h-[7px] rounded-full bg-dot animate-[typing-bounce_1.2s_infinite_ease-in-out] [animation-delay:0.3s]" />
+              </div>
+            )}
           </div>
         </div>
       )}

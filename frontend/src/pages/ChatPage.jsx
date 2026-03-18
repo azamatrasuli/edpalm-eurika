@@ -233,6 +233,7 @@ export function ChatPage() {
           messages={chat.messages}
           avatarProps={avatarProps(28)}
           typing={chat.typing}
+          toolStatus={chat.toolStatus}
           onButtonClick={(value) => handleSend(value)}
         />
 

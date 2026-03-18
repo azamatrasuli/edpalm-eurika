@@ -23,6 +23,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
   const [messages, setMessages] = useState([])
   const [conversationId, setConversationId] = useState('')
   const [typing, setTyping] = useState(false)
+  const [toolStatus, setToolStatus] = useState('')
   const [error, setError] = useState('')
   const [started, setStarted] = useState(false)
   const [escalated, setEscalated] = useState(false)
@@ -143,6 +144,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
 
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }])
     setTyping(true)
+    setToolStatus('')
     setError('')
 
     const controller = new AbortController()
@@ -165,17 +167,14 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
           }
 
           if (event === 'tool_call') {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, toolStatus: payload.label || 'Обрабатываю...', content: '' } : m,
-              ),
-            )
+            setToolStatus(payload.label || 'Обрабатываю...')
           }
 
           if (event === 'token') {
+            setToolStatus('')
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === assistantId ? { ...m, toolStatus: null, content: `${m.content}${payload.text || ''}` } : m,
+                m.id === assistantId ? { ...m, content: `${m.content}${payload.text || ''}` } : m,
               ),
             )
           }
@@ -207,6 +206,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
 
           if (event === 'done') {
             setTyping(false)
+            setToolStatus('')
           }
         },
       })
@@ -237,6 +237,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
     conversationId,
     sendMessage,
     typing,
+    toolStatus,
     error,
     started,
     escalated,
