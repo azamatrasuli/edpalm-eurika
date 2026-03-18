@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import Any
 
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 from app.agent.prompt import get_system_prompt
 from app.config import get_settings
@@ -136,8 +137,11 @@ class LLMService:
 
         all_tool_calls_made: list[dict] = []
         escalation_triggered = False
+        rate_limit_retries = 0
+        max_rate_limit_retries = 3
+        iteration = 0
 
-        for iteration in range(self.MAX_TOOL_ITERATIONS):
+        while iteration < self.MAX_TOOL_ITERATIONS:
             try:
                 create_kwargs: dict[str, Any] = {
                     "model": self.settings.openai_model,
@@ -246,6 +250,7 @@ class LLMService:
                             "content": result.result,
                         })
 
+                    iteration += 1
                     continue  # next iteration — OpenAI will respond with text
 
                 # Edge case: no text and no tool calls
@@ -264,6 +269,22 @@ class LLMService:
                         "escalation": escalation_triggered,
                     },
                 )
+
+            except RateLimitError as e:
+                rate_limit_retries += 1
+                if rate_limit_retries > max_rate_limit_retries:
+                    logger.error("Rate limit: max retries (%d) exceeded", max_rate_limit_retries)
+                    fallback = self._fallback_text(agent_role)
+                    for ch in fallback:
+                        yield LLMChunk(token=ch)
+                    return LLMResult(text=fallback, usage_tokens=None)
+                retry_after = getattr(e, "retry_after", None) or 5
+                logger.warning(
+                    "Rate limit on iteration %d (retry %d/%d), waiting %.1fs",
+                    iteration, rate_limit_retries, max_rate_limit_retries, retry_after,
+                )
+                time.sleep(min(retry_after, 10))
+                continue  # retry same iteration (iteration NOT incremented)
 
             except Exception:
                 logger.exception("LLM streaming error on iteration %d", iteration)

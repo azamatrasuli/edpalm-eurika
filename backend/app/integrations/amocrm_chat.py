@@ -240,27 +240,39 @@ class AmoCRMChatClient:
         prefix = "agent_bot" if is_bot else "agent_user"
         msgid = f"{prefix}_{now}_{now_ms % 1000}"
 
-        sender: dict[str, Any] = {"id": sender_id, "name": sender_name}
-        if sender_phone:
-            sender["profile"] = {"phone": sender_phone}
-
-        inner: dict[str, Any] = {
-            "timestamp": now,
-            "msec_timestamp": now_ms,
-            "msgid": msgid,
-            "conversation_id": conversation_id,
-            "sender": sender,
-            "message": {"type": "text", "text": text},
-            "silent": False,
-        }
-
-        # Outgoing (bot) messages require a "receiver" field per amoCRM Chat API docs.
-        # Without it, amoCRM ignores the message in the imBox thread.
         if is_bot and receiver_id:
-            receiver: dict[str, Any] = {"id": receiver_id, "name": receiver_name or "Клиент"}
+            # Outgoing (bot→user): amoCRM requires sender = origin user (client),
+            # receiver = bot. The message appears as outgoing in imBox.
+            origin_user: dict[str, Any] = {"id": receiver_id, "name": receiver_name or "Клиент"}
             if receiver_phone:
-                receiver["profile"] = {"phone": receiver_phone}
-            inner["receiver"] = receiver
+                origin_user["profile"] = {"phone": receiver_phone}
+            bot_receiver: dict[str, Any] = {"id": sender_id, "name": sender_name}
+
+            inner: dict[str, Any] = {
+                "timestamp": now,
+                "msec_timestamp": now_ms,
+                "msgid": msgid,
+                "conversation_id": conversation_id,
+                "sender": origin_user,
+                "receiver": bot_receiver,
+                "message": {"type": "text", "text": text},
+                "silent": False,
+            }
+        else:
+            # Incoming (user→bot): sender = actual user
+            sender: dict[str, Any] = {"id": sender_id, "name": sender_name}
+            if sender_phone:
+                sender["profile"] = {"phone": sender_phone}
+
+            inner: dict[str, Any] = {
+                "timestamp": now,
+                "msec_timestamp": now_ms,
+                "msgid": msgid,
+                "conversation_id": conversation_id,
+                "sender": sender,
+                "message": {"type": "text", "text": text},
+                "silent": False,
+            }
 
         payload: dict[str, Any] = {
             "event_type": "new_message",
