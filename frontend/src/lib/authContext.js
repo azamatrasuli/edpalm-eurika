@@ -1,8 +1,19 @@
 import WebApp from '@twa-dev/sdk'
 
 function getQueryParam(name) {
+  // Check regular query string first (?token=...), then hash query (/#/?role=...)
   const params = new URLSearchParams(window.location.search)
-  return params.get(name)
+  const value = params.get(name)
+  if (value) return value
+
+  // HashRouter: params are inside the hash (e.g. /#/?role=support&t=...)
+  const hash = window.location.hash
+  const hashQuery = hash.includes('?') ? hash.split('?')[1] : ''
+  if (hashQuery) {
+    const hashParams = new URLSearchParams(hashQuery)
+    return hashParams.get(name)
+  }
+  return null
 }
 
 export function getAgentRole() {
