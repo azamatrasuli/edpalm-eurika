@@ -108,7 +108,8 @@ class DMSServiceBase(ABC):
         ...
 
     @abstractmethod
-    def create_order(self, payer_contact_id: int, positions: list[dict]) -> DMSOrder | None:
+    def create_order(self, payer: "DMSContact", student: "DMSStudent",
+                     product: "DMSProduct", amount_kopecks: int) -> DMSOrder | None:
         ...
 
     @abstractmethod
@@ -225,10 +226,10 @@ class MockDMSService(DMSServiceBase):
             DMSProduct(product_id=3, uuid="mock-uuid-3", name="Экстернат Классный 7 класс", price_kopecks=5450000, grade=7),
         ]
 
-    def create_order(self, payer_contact_id: int, positions: list[dict]) -> DMSOrder | None:
+    def create_order(self, payer: "DMSContact", student: "DMSStudent",
+                     product: "DMSProduct", amount_kopecks: int) -> DMSOrder | None:
         import uuid as _uuid
-        total = sum(p.get("amount", 0) for p in positions)
-        return DMSOrder(order_uuid=str(_uuid.uuid4()), order_id=9999, status=0, amount_kopecks=total)
+        return DMSOrder(order_uuid=str(_uuid.uuid4()), order_id=9999, status=0, amount_kopecks=amount_kopecks)
 
     def get_payment_link(self, order_uuid: str, pay_type: int = 1) -> str | None:
         return f"https://mock-payment.example.com/pay/{order_uuid}"
@@ -435,42 +436,70 @@ class RealDMSService(DMSServiceBase):
             logger.exception("DMS get_products error")
             return []
 
-    def create_order(self, payer_contact_id: int, positions: list[dict]) -> DMSOrder | None:
-        """Create an order in DMS. positions: [{product_uuid, amount, student_contact_id}]."""
+    def create_order(self, payer: DMSContact, student: DMSStudent,
+                     product: "DMSProduct", amount_kopecks: int) -> DMSOrder | None:
+        """Create an order in DMS with full payer + student data."""
+        import uuid as _uuid
         try:
-            order_positions = []
-            for pos in positions:
-                position = {
-                    "product_uuid": pos["product_uuid"],
-                    "amount": pos["amount"],
-                    "currency": "RUB",
-                }
-                if pos.get("student_contact_id"):
-                    position["student"] = {"uuid": str(pos["student_contact_id"])}
-                order_positions.append(position)
+            # Parse student FIO
+            fio_parts = student.fio.split()
+            s_surname = fio_parts[0] if len(fio_parts) > 0 else ""
+            s_name = fio_parts[1] if len(fio_parts) > 1 else ""
+            s_patronymic = fio_parts[2] if len(fio_parts) > 2 else ""
+
+            # Get student birthdate from raw API
+            s_birthdate = self._get_student_birthdate(student.student_id)
 
             payload = {
-                "payer": {"id": payer_contact_id},
-                "positions": order_positions,
-                "status": 0,
-                "holding_id": 1,
+                "source": "sales",
+                "payer": {
+                    "email": payer.email or "",
+                    "phone": payer.phone or "",
+                    "surname": payer.surname,
+                    "name": payer.name,
+                    "patronymic": payer.patronymic or "",
+                },
+                "positions": [{
+                    "uuid": str(_uuid.uuid4()),
+                    "product_uuid": product.uuid,
+                    "amount": amount_kopecks,
+                    "student": {
+                        "uuid": str(_uuid.uuid4()),
+                        "surname": s_surname,
+                        "name": s_name,
+                        "patronymic": s_patronymic,
+                        "birthdate": s_birthdate or "2010-01-01",
+                    },
+                }],
             }
+            logger.info("DMS create_order payload: %s", payload)
             resp = self._request("POST", "/v1/api/orders", json=payload)
             if resp.status_code not in (200, 201):
                 logger.error("DMS create_order failed: %d %s", resp.status_code, resp.text)
                 return None
             data = resp.json()
             order_uuid = data.get("uuid", "")
-            total = sum(pos["amount"] for pos in positions)
             logger.info("DMS: created order uuid=%s", order_uuid)
             return DMSOrder(
                 order_uuid=order_uuid,
                 order_id=data.get("id"),
                 status=data.get("status", 0),
-                amount_kopecks=total,
+                amount_kopecks=amount_kopecks,
             )
         except Exception:
             logger.exception("DMS create_order error")
+            return None
+
+    def _get_student_birthdate(self, student_id: int) -> str | None:
+        """Fetch student birthdate from raw API."""
+        try:
+            resp = self._request("GET", "/v1/api/student", params={"student_id": student_id})
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            contact = data.get("contact", {})
+            return contact.get("birthdate")
+        except Exception:
             return None
 
     def get_payment_link(self, order_uuid: str, pay_type: int = 1) -> str | None:

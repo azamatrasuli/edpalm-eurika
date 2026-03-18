@@ -66,19 +66,31 @@ class PaymentService:
                 "success": False,
                 "error": f"Контакт с телефоном {payer_phone} не найден в системе. Проверьте номер.",
             }
-        payer_contact_id = search_result.contact.contact_id
+        payer_contact = search_result.contact
+
+        # Find matching student by grade or first active
+        student = None
+        for s in search_result.students:
+            if s.grade == grade and s.is_active:
+                student = s
+                break
+        if not student:
+            for s in search_result.students:
+                if s.is_active:
+                    student = s
+                    break
+        if not student:
+            logger.warning("No active student found for contact=%d grade=%d", payer_contact.contact_id, grade)
+            return {
+                "success": False,
+                "error": "Не найден ученик для оформления заказа. Уточните данные.",
+            }
 
         # 3. Create order
-        positions = [
-            {
-                "product_uuid": product.uuid,
-                "amount": product.price_kopecks,
-            }
-        ]
-        order = self.dms.create_order(payer_contact_id, positions)
+        order = self.dms.create_order(payer_contact, student, product, product.price_kopecks)
         if not order:
             logger.error("Failed to create DMS order for contact=%d product=%s",
-                         payer_contact_id, product.uuid)
+                         payer_contact.contact_id, product.uuid)
             return {
                 "success": False,
                 "error": "Не удалось создать заказ. Попробуйте позже.",
