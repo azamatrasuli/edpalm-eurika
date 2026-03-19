@@ -167,7 +167,10 @@ class LLMService:
                 if tool_executor:
                     create_kwargs["tools"] = tool_defs
 
-                stream = self.client.chat.completions.create(**create_kwargs)
+                from app.logging_config import log_external_call
+
+                with log_external_call("openai", f"chat_completion_iter{iteration}"):
+                    stream = self.client.chat.completions.create(**create_kwargs)
 
                 full_text: list[str] = []
                 tool_calls_acc: dict[int, dict] = {}
@@ -372,5 +375,5 @@ class LLMService:
                 return [c for c in chips if isinstance(c, dict) and "label" in c and "value" in c][:3]
             return None
         except Exception:
-            logger.debug("Suggestion generation failed", exc_info=True)
+            logger.info("Suggestion generation failed", exc_info=True)
             return None

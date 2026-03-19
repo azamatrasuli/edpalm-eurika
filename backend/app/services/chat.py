@@ -154,7 +154,7 @@ class ChatService:
                 if not existing_profile:
                     self.onboarding.save_profile_from_phone(actor.actor_id, resolved_phone)
             except Exception:
-                logger.debug("Auto DMS resolve failed for %s", actor.actor_id, exc_info=True)
+                logger.info("Auto DMS resolve failed for %s", actor.actor_id, exc_info=True)
 
         # Found contact — check for active deal
         pipeline_id = None
@@ -245,7 +245,7 @@ class ChatService:
                 agent_role=agent_role,
             )
         except Exception:
-            logger.debug("Memory retrieval failed for %s", actor.actor_id, exc_info=True)
+            logger.warning("Memory retrieval failed for %s", actor.actor_id, exc_info=True)
 
         return self.llm.stream_answer(
             user_text=user_text,

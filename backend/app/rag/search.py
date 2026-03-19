@@ -29,10 +29,13 @@ class KnowledgeSearch:
         self.client = OpenAI(api_key=self.settings.openai_api_key) if self.settings.openai_api_key else None
 
     def _embed_query(self, text: str) -> list[float]:
-        response = self.client.embeddings.create(
-            model=self.settings.openai_embedding_model,
-            input=text,
-        )
+        from app.logging_config import log_external_call
+
+        with log_external_call("openai", "embed_query"):
+            response = self.client.embeddings.create(
+                model=self.settings.openai_embedding_model,
+                input=text,
+            )
         return response.data[0].embedding
 
     def search(
@@ -60,7 +63,9 @@ class KnowledgeSearch:
             return []
 
         try:
-            with get_connection() as conn:
+            from app.logging_config import log_external_call
+
+            with log_external_call("supabase", "kb_search"), get_connection() as conn:
                 if conn is None:
                     return []
                 with conn.cursor() as cur:

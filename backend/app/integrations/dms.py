@@ -283,15 +283,18 @@ class RealDMSService(DMSServiceBase):
 
     def _request(self, method: str, path: str, **kwargs) -> "httpx.Response":
         """Make an authenticated request with auto-retry on 401."""
+        from app.logging_config import log_external_call
+
         client = self._get_client()
         token = self._ensure_token()
         kwargs.setdefault("headers", {})["Authorization"] = f"Bearer {token}"
-        resp = client.request(method, path, **kwargs)
-        if resp.status_code == 401:
-            logger.info("DMS token expired, re-authenticating")
-            token = self._authenticate()
-            kwargs["headers"]["Authorization"] = f"Bearer {token}"
+        with log_external_call("dms", f"{method} {path}"):
             resp = client.request(method, path, **kwargs)
+            if resp.status_code == 401:
+                logger.info("DMS token expired, re-authenticating")
+                token = self._authenticate()
+                kwargs["headers"]["Authorization"] = f"Bearer {token}"
+                resp = client.request(method, path, **kwargs)
         return resp
 
     def _search_contact_raw(self, query: str) -> dict | None:

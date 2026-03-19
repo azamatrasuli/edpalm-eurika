@@ -172,7 +172,7 @@ export async function synthesizeSpeech(text, auth) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ auth, text }),
   })
-  if (!response.ok) throw new Error(`TTS failed (${response.status})`)
+  if (!response.ok) await throwApiError(response)
   return response.blob()
 }
 

@@ -210,6 +210,8 @@ class AmoCRMClient:
         params: dict[str, Any] | None = None,
         retry_on_401: bool = True,
     ) -> dict | None:
+        from app.logging_config import log_external_call
+
         if not self._is_configured():
             return None
 
@@ -224,7 +226,8 @@ class AmoCRMClient:
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
         try:
-            resp = self._http.request(method, url, headers=headers, json=body, params=params)
+            with log_external_call("amocrm", f"{method} {endpoint}"):
+                resp = self._http.request(method, url, headers=headers, json=body, params=params)
         except httpx.HTTPError:
             logger.exception("HTTP error: %s %s", method, endpoint)
             return None
