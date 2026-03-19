@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { transcribeAudio } from '../api/client'
+import { MESSAGE_MAX_LENGTH, transcribeAudio } from '../api/client'
 import { VoiceRecorder } from './VoiceRecorder'
 
 export function MessageInput({ disabled, onSend, auth, onTypingStart }) {
@@ -9,9 +9,12 @@ export function MessageInput({ disabled, onSend, auth, onTypingStart }) {
   const textareaRef = useRef(null)
   const wasEmptyRef = useRef(true)
 
+  const overLimit = text.length > MESSAGE_MAX_LENGTH
+  const showCounter = text.length > MESSAGE_MAX_LENGTH * 0.8
+
   function submit() {
     const value = text.trim()
-    if (!value) return
+    if (!value || overLimit) return
     onSend(value)
     setText('')
   }
@@ -49,8 +52,9 @@ export function MessageInput({ disabled, onSend, auth, onTypingStart }) {
     }
   }, [])
 
-  const handleVoiceCancel = useCallback(() => {
+  const handleVoiceCancel = useCallback((errorMessage) => {
     setVoiceMode('idle')
+    if (errorMessage) setMicError(errorMessage)
   }, [])
 
   // Transcribing state
@@ -89,7 +93,12 @@ export function MessageInput({ disabled, onSend, auth, onTypingStart }) {
           {micError}
         </div>
       )}
-      <div className="input-ring flex items-end gap-2 bg-input-surface border-[1.5px] border-input-border rounded-3xl pl-4 pr-1.5 py-1.5 transition-[border-color,box-shadow] duration-200 ease-in-out">
+      {showCounter && (
+        <div className={`text-[12px] text-right px-3 mb-1 tabular-nums ${overLimit ? 'text-error font-medium' : 'text-fg-muted opacity-60'}`}>
+          {text.length} / {MESSAGE_MAX_LENGTH}
+        </div>
+      )}
+      <div className={`input-ring flex items-end gap-2 bg-input-surface border-[1.5px] rounded-3xl pl-4 pr-1.5 py-1.5 transition-[border-color,box-shadow] duration-200 ease-in-out ${overLimit ? 'border-error-border' : 'border-input-border'}`}>
         <textarea
           ref={textareaRef}
           className="flex-1 border-none py-2 resize-none text-[15px] bg-transparent text-fg leading-[1.4] min-h-6 max-h-30 outline-none placeholder:text-fg-muted placeholder:opacity-60"
@@ -121,7 +130,7 @@ export function MessageInput({ disabled, onSend, auth, onTypingStart }) {
           <button
             className="w-9 h-9 p-0 flex items-center justify-center border-none rounded-full bg-brand text-white cursor-pointer shrink-0 transition-[background,transform,opacity] duration-150 ease-in-out hover:bg-brand-hover hover:scale-105 active:scale-95 disabled:opacity-30 disabled:cursor-default"
             onClick={submit}
-            disabled={disabled || !text.trim()}
+            disabled={disabled || !text.trim() || overLimit}
             title="Отправить"
             type="button"
           >

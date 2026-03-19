@@ -209,9 +209,18 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
             : m,
         ),
       )
-      const errMsg = e.message === 'SSE_TIMEOUT'
-        ? 'Сервер не ответил вовремя. Попробуйте ещё раз.'
-        : e.message
+      let errMsg
+      if (e.message === 'SSE_TIMEOUT') {
+        errMsg = 'Сервер не ответил вовремя. Попробуйте ещё раз.'
+      } else if (e.code === 'offline') {
+        errMsg = 'Нет подключения к интернету. Проверьте соединение и попробуйте снова.'
+      } else if (e.code === 'rate_limit') {
+        errMsg = 'Слишком много сообщений. Подождите минуту.'
+      } else if (e.code === 'auth_expired' || e.code === 'auth_invalid') {
+        errMsg = 'Сессия истекла. Обновите страницу.'
+      } else {
+        errMsg = e.message || 'Что-то пошло не так. Попробуйте ещё раз.'
+      }
       setError(errMsg)
     } finally {
       abortRef.current = null

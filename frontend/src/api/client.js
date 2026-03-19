@@ -166,6 +166,16 @@ export async function transcribeAudio(audioBlob, auth) {
   return (await response.json()).transcript
 }
 
+export async function synthesizeSpeech(text, auth) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/chat/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth, text }),
+  })
+  if (!response.ok) throw new Error(`TTS failed (${response.status})`)
+  return response.blob()
+}
+
 export async function checkProfile(auth) {
   const response = await fetch(`${API_BASE_URL}/api/v1/profile/check`, {
     method: 'POST',

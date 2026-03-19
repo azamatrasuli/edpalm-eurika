@@ -8,6 +8,7 @@ import { WelcomeScreen } from '../components/WelcomeScreen'
 import { useChat } from '../hooks/useChat'
 import { useConversationList } from '../hooks/useConversationList'
 import { useOnboarding } from '../hooks/useOnboarding'
+import { useTTS } from '../hooks/useTTS'
 import { buildAuthPayload, getAgentRole } from '../lib/authContext'
 
 const EUREKA_AVATAR = '/avatar.webp'
@@ -117,9 +118,19 @@ export function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
 
+  // Error toast for sidebar operations
+  const [errorToast, setErrorToast] = useState('')
+  const errorToastTimerRef = useRef(null)
+  const showErrorToast = useCallback((msg) => {
+    setErrorToast(msg)
+    clearTimeout(errorToastTimerRef.current)
+    errorToastTimerRef.current = setTimeout(() => setErrorToast(''), 5000)
+  }, [])
+
   const onboarding = useOnboarding(auth, actorId, actorPhone)
   const chat = useChat(auth, agentRole, onboarding.isComplete)
-  const convList = useConversationList(auth, agentRole)
+  const convList = useConversationList(auth, agentRole, { onError: showErrorToast })
+  const tts = useTTS(auth)
 
   // Wire title updates: SSE → sidebar
   useEffect(() => {
@@ -138,10 +149,11 @@ export function ChatPage() {
   }, [chat.conversationId])
 
   const handleSelectConversation = useCallback((convId) => {
+    tts.stop()
     chat.switchConversation(convId)
     convList.setActiveId(convId)
     setSidebarOpen(false)
-  }, [chat, convList])
+  }, [chat, convList, tts])
 
   const handleNewChat = useCallback(async () => {
     if (isCreating) return
@@ -273,6 +285,9 @@ export function ChatPage() {
           toolStatus={chat.toolStatus}
           loading={chat.loading}
           onButtonClick={(value) => handleSend(value)}
+          onTTSPlay={tts.play}
+          ttsPlayingId={tts.playingId}
+          ttsState={tts.ttsState}
         />
 
         {chat.error && (
@@ -293,6 +308,21 @@ export function ChatPage() {
         onUndo={handleUndoArchive}
         onDismiss={convList.dismissArchiveToast}
       />
+
+      {/* Error toast for sidebar operations */}
+      {errorToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 error-enter px-4 py-2.5 rounded-xl bg-error-bg text-error border border-error-border text-sm shadow-lg max-w-[90vw]">
+          <div className="flex items-center gap-2">
+            <span>{errorToast}</span>
+            <button
+              onClick={() => setErrorToast('')}
+              className="shrink-0 p-0.5 rounded hover:bg-error/10 transition-colors border-none bg-transparent text-error cursor-pointer text-base leading-none"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

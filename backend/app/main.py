@@ -74,7 +74,7 @@ app.add_middleware(
 _rate_buckets: dict[str, list[float]] = defaultdict(list)
 _RATE_LIMIT = 30          # max requests per window
 _RATE_WINDOW = 60.0       # seconds
-_RATE_PATHS = {"/api/v1/chat/stream", "/api/v1/chat/voice", "/api/v1/chat/transcribe"}
+_RATE_PATHS = {"/api/v1/chat/stream", "/api/v1/chat/voice", "/api/v1/chat/transcribe", "/api/v1/chat/tts"}
 
 
 def _check_rate_limit(key: str) -> bool:

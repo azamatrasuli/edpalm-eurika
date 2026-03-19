@@ -8,7 +8,7 @@ import {
   unarchiveConversation as apiUnarchive,
 } from '../api/client'
 
-export function useConversationList(auth, agentRole = 'sales') {
+export function useConversationList(auth, agentRole = 'sales', { onError } = {}) {
   const [conversations, setConversations] = useState([])
   const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(false)
@@ -37,6 +37,7 @@ export function useConversationList(auth, agentRole = 'sales') {
       offsetRef.current = offset + data.conversations.length
     } catch (e) {
       console.error('Failed to load conversations:', e)
+      onError?.('Не удалось загрузить историю диалогов')
     } finally {
       setLoading(false)
     }
@@ -70,6 +71,7 @@ export function useConversationList(auth, agentRole = 'sales') {
       setHasMore(false)
     } catch (e) {
       console.error('Failed to search conversations:', e)
+      onError?.('Поиск не удался. Попробуйте ещё раз')
     } finally {
       setLoading(false)
     }
@@ -102,6 +104,7 @@ export function useConversationList(auth, agentRole = 'sales') {
     } catch (e) {
       // Restore on failure
       console.error('Failed to archive conversation:', e)
+      onError?.('Не удалось архивировать диалог')
       if (conv) {
         setConversations((prev) => {
           const next = [...prev]
@@ -134,6 +137,7 @@ export function useConversationList(auth, agentRole = 'sales') {
       if (wasActive) setActiveId(id)
     } catch (e) {
       console.error('Failed to unarchive conversation:', e)
+      onError?.('Не удалось восстановить диалог')
     }
   }, [auth, archiveToast])
 
@@ -154,6 +158,7 @@ export function useConversationList(auth, agentRole = 'sales') {
       await apiDelete(conversationId, auth)
     } catch (e) {
       console.error('Failed to delete conversation:', e)
+      onError?.('Не удалось удалить диалог')
       // Restore on failure
       if (conv) {
         setConversations((prev) => {
@@ -174,6 +179,7 @@ export function useConversationList(auth, agentRole = 'sales') {
       )
     } catch (e) {
       console.error('Failed to rename conversation:', e)
+      onError?.('Не удалось переименовать диалог')
     }
   }, [auth])
 

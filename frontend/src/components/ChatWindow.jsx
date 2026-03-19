@@ -31,7 +31,35 @@ function MessageSkeleton() {
   )
 }
 
-export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading, onButtonClick, onFormSubmit }) {
+function TTSButton({ messageId, ttsPlayingId, ttsState, onPlay }) {
+  const isThis = ttsPlayingId === messageId
+  const isLoading = isThis && ttsState === 'loading'
+  const isPlaying = isThis && ttsState === 'playing'
+  const isPaused = isThis && ttsState === 'paused'
+
+  return (
+    <button
+      onClick={onPlay}
+      className={`w-7 h-7 flex items-center justify-center rounded-full border-none cursor-pointer shrink-0 transition-all duration-200 ${
+        isThis
+          ? 'bg-brand/10 text-brand opacity-100'
+          : 'bg-transparent text-fg-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-fg hover:bg-black/[0.06] dark:hover:bg-white/[0.08]'
+      }`}
+      title={isPlaying ? 'Пауза' : isPaused ? 'Продолжить' : 'Озвучить'}
+      type="button"
+    >
+      {isLoading ? (
+        <span className="w-3.5 h-3.5 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      ) : isPlaying ? (
+        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      ) : (
+        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+      )}
+    </button>
+  )
+}
+
+export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading, onButtonClick, onFormSubmit, onTTSPlay, ttsPlayingId, ttsState }) {
   const containerRef = useRef(null)
   const bottomRef = useRef(null)
   const userScrolledUp = useRef(false)
@@ -67,10 +95,12 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
           const isSpecial = message.type && message.type !== 'text'
           const isPayment = message.type === 'payment'
 
+          const showTTS = onTTSPlay && message.role === 'assistant' && message.content && !isSpecial
+
           return (
             <div
               key={message.id}
-              className={`flex items-end gap-2 mt-1 opacity-0 animate-[message-in_0.3s_ease_forwards] ${
+              className={`group flex items-end gap-2 mt-1 opacity-0 animate-[message-in_0.3s_ease_forwards] ${
                 isPayment ? 'payment-enter' : ''
               } ${
                 message.role === 'user' ? 'justify-end' : 'justify-start'
@@ -109,6 +139,14 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
                   message.content
                 )}
               </div>
+              {showTTS && (
+                <TTSButton
+                  messageId={message.id}
+                  ttsPlayingId={ttsPlayingId}
+                  ttsState={ttsState}
+                  onPlay={() => onTTSPlay(message.id, message.content)}
+                />
+              )}
             </div>
           )
         })}

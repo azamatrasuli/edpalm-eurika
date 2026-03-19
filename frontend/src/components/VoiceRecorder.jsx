@@ -81,8 +81,18 @@ export function VoiceRecorder({ onDone, onCancel }) {
         timerRef.current = setInterval(() => {
           setElapsed((p) => p + 1)
         }, 1000)
-      } catch {
-        if (!canceled) onCancel()
+      } catch (err) {
+        if (!canceled) {
+          let msg
+          if (err?.name === 'NotAllowedError') {
+            msg = 'Доступ к микрофону запрещён. Разрешите в настройках браузера'
+          } else if (err?.name === 'NotFoundError') {
+            msg = 'Микрофон не найден. Подключите микрофон и попробуйте снова'
+          } else {
+            msg = 'Не удалось подключить микрофон'
+          }
+          onCancel(msg)
+        }
       }
     }
 

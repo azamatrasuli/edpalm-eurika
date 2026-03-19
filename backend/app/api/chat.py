@@ -286,6 +286,33 @@ async def chat_transcribe(
     return {"transcript": transcript}
 
 
+@router.post("/chat/tts")
+async def chat_tts(request: Request) -> StreamingResponse:
+    """Synthesize assistant text to speech using OpenAI TTS API."""
+    body = await request.json()
+
+    auth = AuthPayload.model_validate(body.get("auth", {}))
+    auth_service.resolve(auth)
+
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "Text is required")
+
+    settings = get_settings()
+
+    def audio_stream():
+        yield from speech_service.synthesize_stream(text, voice=settings.openai_tts_voice)
+
+    return StreamingResponse(
+        audio_stream(),
+        media_type="audio/mpeg",
+        headers={
+            "Content-Disposition": "inline",
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+
+
 @router.post("/chat/voice")
 async def chat_voice(
     audio: UploadFile = File(...),
