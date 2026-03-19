@@ -3,8 +3,6 @@ import { ChatWindow } from '../components/ChatWindow'
 import { ConversationSidebar } from '../components/ConversationSidebar'
 import { EscalationBanner } from '../components/EscalationBanner'
 import { MessageInput } from '../components/MessageInput'
-// SuggestionChips disabled — pure live conversation
-// import { SuggestionChips } from '../components/SuggestionChips'
 import { WelcomeScreen } from '../components/WelcomeScreen'
 import { useChat } from '../hooks/useChat'
 import { useConversationList } from '../hooks/useConversationList'
@@ -122,6 +120,13 @@ export function ChatPage() {
   const chat = useChat(auth, agentRole, onboarding.isComplete)
   const convList = useConversationList(auth, agentRole)
 
+  // Wire title updates: SSE → sidebar
+  useEffect(() => {
+    chat.onTitleUpdate((conversationId, title) => {
+      convList.updateTitle(conversationId, title)
+    })
+  }, [chat.onTitleUpdate, convList.updateTitle])
+
   // Sync active conversation in sidebar
   const setActiveIdRef = useRef(convList.setActiveId)
   setActiveIdRef.current = convList.setActiveId
@@ -159,8 +164,6 @@ export function ChatPage() {
     }
   }, [chat, convList, agentRole, isCreating])
 
-  // auth is always available (guest fallback), no blocking screen needed
-
   const isSupport = agentRole === 'support'
   const headerSubtitle = isSupport ? 'Служба поддержки EdPalm' : 'AI менеджер EdPalm'
   const welcomeText = isSupport
@@ -172,7 +175,7 @@ export function ChatPage() {
     return <WelcomeScreen subtitle={welcomeText} avatarProps={avatarProps(88)} error={onboarding.error} />
   }
 
-  // Phase 2: Chat
+  // Phase 2: Chat not started
   if (!chat.started) {
     return <WelcomeScreen subtitle={welcomeText} avatarProps={avatarProps(88)} error={chat.error} />
   }
@@ -208,7 +211,7 @@ export function ChatPage() {
           {/* Hamburger menu for mobile */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="sm:hidden p-1.5 -ml-1 rounded-lg hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+            className="sm:hidden p-1.5 -ml-1 rounded-lg hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="3" y1="5" x2="17" y2="5" />
@@ -234,19 +237,18 @@ export function ChatPage() {
           avatarProps={avatarProps(28)}
           typing={chat.typing}
           toolStatus={chat.toolStatus}
+          loading={chat.loading}
           onButtonClick={(value) => handleSend(value)}
         />
 
-        {/* SuggestionChips disabled — pure live conversation */}
-
         {chat.error && (
-          <div className="px-4 py-3 mx-5 rounded-xl bg-error-bg text-error border border-error-border text-sm leading-normal shrink-0 max-sm:mx-3">
+          <div className="error-enter px-4 py-3 mx-5 rounded-xl bg-error-bg text-error border border-error-border text-sm leading-normal shrink-0 max-sm:mx-3">
             {chat.error}
           </div>
         )}
 
         <div className="shrink-0 px-5 pt-3 pb-[calc(16px+env(safe-area-inset-bottom,0px))] bg-input-area backdrop-blur-[16px] border-t border-input-area-border max-sm:px-3 max-sm:pt-2.5">
-          <MessageInput disabled={chat.typing || chat.escalated} onSend={handleSend} auth={auth} onTypingStart={chat.clearSuggestions} />
+          <MessageInput disabled={chat.typing || chat.escalated || chat.loading} onSend={handleSend} auth={auth} onTypingStart={chat.clearSuggestions} />
         </div>
       </div>
     </main>

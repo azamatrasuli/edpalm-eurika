@@ -197,6 +197,33 @@ body {
   50% { opacity: 1; }
 }
 
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-12px); max-height: 0; }
+  to { opacity: 1; transform: translateY(0); max-height: 120px; }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes fade-out-in {
+  0% { opacity: 1; }
+  40% { opacity: 0; }
+  60% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 /* ================================================================
    Sidebar slide-in animation
    ================================================================ */
@@ -225,6 +252,52 @@ body {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* ================================================================
+   Transition utilities
+   ================================================================ */
+
+.transition-chat {
+  transition: opacity 0.2s ease-out;
+}
+
+.chat-loading {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Skeleton loader blocks */
+.skeleton {
+  background: linear-gradient(90deg, var(--bubble-bg) 25%, rgba(128,128,128,0.08) 50%, var(--bubble-bg) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+  border-radius: 12px;
+}
+
+/* Escalation banner animation */
+.escalation-enter {
+  animation: slide-down 0.35s ease-out forwards;
+  overflow: hidden;
+}
+
+/* Payment card animation */
+.payment-enter {
+  animation: fade-in-up 0.4s ease-out forwards;
+}
+
+/* Error banner animation */
+.error-enter {
+  animation: fade-in-up 0.25s ease-out forwards;
+}
+
+/* Conversation item animations */
+.conv-item-enter {
+  animation: fade-in-up 0.25s ease-out forwards;
+}
+
+.conv-item-exit {
+  animation: fade-in 0.2s ease-out reverse forwards;
 }
 
 /* ================================================================

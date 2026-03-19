@@ -174,22 +174,39 @@ def _make_stream(
         )
         yield _sse("escalation", {"reason": reason, "manager_notified": True})
 
+    # Auto-title: set title from first user message if conversation has none
+    try:
+        from app.db.pool import get_connection
+        with get_connection() as conn:
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT title FROM conversations WHERE id = %s", (ctx.conversation.id,))
+                    row = cur.fetchone()
+                    if row and not row.get("title"):
+                        auto_title = user_text.strip()[:60]
+                        if len(user_text.strip()) > 60:
+                            auto_title = auto_title.rsplit(" ", 1)[0] + "..."
+                        chat_service.repo.update_conversation_title(ctx.conversation.id, auto_title)
+                        yield _sse("title", {"conversation_id": ctx.conversation.id, "title": auto_title})
+    except Exception:
+        logger.debug("Auto-title generation failed", exc_info=True)
+
     yield _sse("done", {"text": answer, "usage_tokens": usage_tokens})
 
-    # Suggestion chips disabled — pure live conversation
-    # try:
-    #     agent_role_str = getattr(actor, "agent_role", "sales")
-    #     if hasattr(agent_role_str, "value"):
-    #         agent_role_str = agent_role_str.value
-    #     suggestions = chat_service.llm.generate_suggestions(
-    #         assistant_text=answer,
-    #         user_text=user_text,
-    #         agent_role=str(agent_role_str),
-    #     )
-    #     if suggestions:
-    #         yield _sse("suggestions", {"chips": suggestions})
-    # except Exception:
-    #     logger.debug("Suggestion generation failed", exc_info=True)
+    # Suggestion chips — contextual quick-reply buttons
+    try:
+        agent_role_str = getattr(actor, "agent_role", "sales")
+        if hasattr(agent_role_str, "value"):
+            agent_role_str = agent_role_str.value
+        suggestions = chat_service.llm.generate_suggestions(
+            assistant_text=answer,
+            user_text=user_text,
+            agent_role=str(agent_role_str),
+        )
+        if suggestions:
+            yield _sse("suggestions", {"chips": suggestions})
+    except Exception:
+        logger.debug("Suggestion generation failed", exc_info=True)
 
 
 # ---- endpoints -----------------------------------------------------------

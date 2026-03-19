@@ -98,6 +98,13 @@ export function useConversationList(auth, agentRole = 'sales') {
     setActiveId(conv.id)
   }, [])
 
+  // Update title reactively (from SSE stream)
+  const updateTitle = useCallback((conversationId, title) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conversationId ? { ...c, title } : c)),
+    )
+  }, [])
+
   return useMemo(() => ({
     conversations,
     total,
@@ -112,5 +119,6 @@ export function useConversationList(auth, agentRole = 'sales') {
     archive,
     rename,
     addConversation,
-  }), [conversations, total, hasMore, loading, searchQuery, activeId, refresh, loadMore, search, archive, rename, addConversation])
+    updateTitle,
+  }), [conversations, total, hasMore, loading, searchQuery, activeId, refresh, loadMore, search, archive, rename, addConversation, updateTitle])
 }

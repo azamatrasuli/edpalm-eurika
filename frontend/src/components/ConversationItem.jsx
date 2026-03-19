@@ -17,11 +17,24 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
+  const [titleFlash, setTitleFlash] = useState(false)
   const inputRef = useRef(null)
   const menuRef = useRef(null)
+  const prevTitleRef = useRef(conversation.title)
 
   const title = conversation.title || conversation.last_user_message || 'Новый чат'
   const time = timeAgo(conversation.updated_at)
+
+  // Flash animation when title changes reactively
+  useEffect(() => {
+    if (prevTitleRef.current !== conversation.title && conversation.title) {
+      setTitleFlash(true)
+      const timer = setTimeout(() => setTitleFlash(false), 600)
+      prevTitleRef.current = conversation.title
+      return () => clearTimeout(timer)
+    }
+    prevTitleRef.current = conversation.title
+  }, [conversation.title])
 
   // Close menu on click outside
   useEffect(() => {
@@ -78,7 +91,7 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
   return (
     <div
       onClick={() => onSelect(conversation.id)}
-      className={`group relative flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg transition-colors ${
+      className={`group relative flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg transition-all duration-150 ${
         isActive
           ? 'bg-brand/10 text-brand'
           : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06] text-fg'
@@ -100,7 +113,11 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
           </form>
         ) : (
           <>
-            <div className="text-sm font-medium truncate leading-tight">{title}</div>
+            <div className={`text-sm font-medium truncate leading-tight transition-all duration-300 ${
+              titleFlash ? 'text-brand scale-[1.01]' : ''
+            }`}>
+              {title}
+            </div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-xs text-fg-muted truncate">
                 {conversation.message_count > 0 ? `${conversation.message_count} сообщ.` : ''}
@@ -112,10 +129,10 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
       </div>
 
       {!editing && (
-        <div ref={menuRef} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div ref={menuRef} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
           <button
             onClick={handleMenuToggle}
-            className="p-1 rounded hover:bg-black/[0.06] dark:hover:bg-white/[0.08]"
+            className="p-1 rounded hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-fg-muted">
               <circle cx="8" cy="3" r="1.5" />
@@ -125,16 +142,16 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
           </button>
 
           {menuOpen && (
-            <div className="absolute right-2 top-full z-20 mt-1 w-36 rounded-lg border border-black/10 bg-white dark:bg-[#2a2a2a] shadow-lg py-1">
+            <div className="absolute right-2 top-full z-20 mt-1 w-36 rounded-lg border border-black/10 bg-white dark:bg-[#2a2a2a] shadow-lg py-1 animate-[fade-in_0.12s_ease]">
               <button
                 onClick={handleStartRename}
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
               >
                 Переименовать
               </button>
               <button
                 onClick={handleArchive}
-                className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 Удалить
               </button>

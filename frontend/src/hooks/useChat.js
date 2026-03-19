@@ -5,20 +5,6 @@ function getStorageKey(agentRole) {
   return `eurika_conversation_id_${agentRole}`
 }
 
-// Quick reply buttons shown after the greeting
-const QUICK_REPLIES = {
-  sales: [
-    { id: 'programs', label: 'Подобрать программу', value: 'Хочу подобрать программу обучения' },
-    { id: 'prices', label: 'Узнать стоимость', value: 'Сколько стоит обучение?' },
-    { id: 'question', label: 'У меня вопрос', value: 'У меня есть вопрос об EdPalm' },
-  ],
-  support: [
-    { id: 'platform', label: 'Вопрос по платформе', value: 'У меня вопрос по учебной платформе' },
-    { id: 'docs', label: 'Документы', value: 'Мне нужна справка или документ' },
-    { id: 'payment', label: 'Вопрос по оплате', value: 'У меня вопрос по оплате' },
-  ],
-}
-
 export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
   const [messages, setMessages] = useState([])
   const [conversationId, setConversationId] = useState('')
@@ -26,12 +12,14 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
   const [toolStatus, setToolStatus] = useState('')
   const [error, setError] = useState('')
   const [started, setStarted] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [escalated, setEscalated] = useState(false)
   const [escalationReason, setEscalationReason] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const abortRef = useRef(null)
   const initRef = useRef(false)
   const conversationIdRef = useRef(conversationId)
+  const titleCallbackRef = useRef(null)
 
   // --- Load a conversation (new or existing) ---
   const loadConversation = useCallback(async (convId = null, forceNew = false) => {
@@ -43,6 +31,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
       abortRef.current = null
     }
 
+    setLoading(true)
     setTyping(false)
     setError('')
     setEscalated(false)
@@ -70,6 +59,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
                 })),
             )
             setStarted(true)
+            setLoading(false)
             return data
           }
         } catch {
@@ -84,14 +74,12 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
       ]
 
       setMessages(initMessages)
-
-      // Suggestion chips disabled — pure live conversation
-      // const replies = QUICK_REPLIES[agentRole] || QUICK_REPLIES.sales
-      // setSuggestions(replies.map(r => ({ label: r.label, value: r.value })))
       setStarted(true)
+      setLoading(false)
       return data
     } catch (e) {
       setError(e.message)
+      setLoading(false)
       return null
     }
   }, [auth, agentRole])
@@ -197,12 +185,12 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
             setEscalationReason(payload.reason || '')
           }
 
-          // Suggestion chips disabled — pure live conversation
-          // if (event === 'suggestions') {
-          //   setSuggestions(
-          //     (payload.chips || []).slice(0, 4).map(c => ({ label: c.label, value: c.value }))
-          //   )
-          // }
+          // Title update from backend — push to sidebar
+          if (event === 'title' && payload.title) {
+            if (titleCallbackRef.current) {
+              titleCallbackRef.current(payload.conversation_id, payload.title)
+            }
+          }
 
           if (event === 'done') {
             setTyping(false)
@@ -232,6 +220,11 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
 
   const clearSuggestions = useCallback(() => setSuggestions([]), [])
 
+  // Register title update callback (called from ChatPage)
+  const onTitleUpdate = useCallback((cb) => {
+    titleCallbackRef.current = cb
+  }, [])
+
   return {
     messages,
     conversationId,
@@ -240,11 +233,13 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
     toolStatus,
     error,
     started,
+    loading,
     escalated,
     escalationReason,
     switchConversation,
     startNewChat,
     suggestions,
     clearSuggestions,
+    onTitleUpdate,
   }
 }
