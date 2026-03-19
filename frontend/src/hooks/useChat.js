@@ -56,6 +56,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
                   id: crypto.randomUUID(),
                   role: m.role,
                   content: m.content,
+                  fromHistory: true,
                 })),
             )
             setStarted(true)

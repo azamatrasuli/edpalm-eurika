@@ -84,23 +84,24 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
       ref={containerRef}
       onScroll={handleScroll}
     >
-      {/* Loading skeleton during conversation switch */}
-      {loading && (
+      {/* Loading skeleton during conversation switch — shown INSTEAD of messages */}
+      {loading ? (
         <MessageSkeleton />
-      )}
-
-      {/* Messages with fade transition */}
-      <div className={`transition-chat flex flex-col gap-1 ${loading ? 'chat-loading' : ''}`}>
+      ) : (
+      <div className="flex flex-col gap-1">
         {visibleMessages.map((message) => {
           const isSpecial = message.type && message.type !== 'text'
           const isPayment = message.type === 'payment'
+          const shouldAnimate = !message.fromHistory
 
           const showTTS = onTTSPlay && message.role === 'assistant' && message.content && !isSpecial
 
           return (
             <div
               key={message.id}
-              className={`group flex items-end gap-2 mt-1 opacity-0 animate-[message-in_0.3s_ease_forwards] ${
+              className={`group flex items-end gap-2 mt-1 ${
+                shouldAnimate ? 'opacity-0 animate-[message-in_0.3s_ease_forwards]' : ''
+              } ${
                 isPayment ? 'payment-enter' : ''
               } ${
                 message.role === 'user' ? 'justify-end' : 'justify-start'
@@ -151,6 +152,7 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
           )
         })}
       </div>
+      )}
 
       {typing && (
         <div className="flex items-end gap-2 mt-1 opacity-0 animate-[message-in_0.3s_ease_forwards] justify-start">
