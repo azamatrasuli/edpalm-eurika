@@ -24,7 +24,9 @@ function getTelegramWebApp() {
 
 export function getAgentRole() {
   const role = getQueryParam('role')
-  return role === 'support' ? 'support' : 'sales'
+  if (role === 'support') return 'support'
+  if (role === 'teacher') return 'teacher'
+  return 'sales'
 }
 
 export function buildAuthPayload() {

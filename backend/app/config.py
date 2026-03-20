@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     dms_password: str | None = Field(default=None, alias="DMS_PASSWORD")
 
     # --- Frontend ---
-    frontend_url: str = Field(default="https://edplam-eurika.vercel.app", alias="FRONTEND_URL")
+    frontend_url: str = Field(default="https://edpalm-eurika.vercel.app", alias="FRONTEND_URL")
 
     # --- Escalation ---
     manager_telegram_chat_id: str = Field(default="", alias="MANAGER_TELEGRAM_CHAT_ID")

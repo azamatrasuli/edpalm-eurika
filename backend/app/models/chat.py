@@ -17,6 +17,7 @@ class Channel(str, Enum):
 class AgentRole(str, Enum):
     sales = "sales"
     support = "support"
+    teacher = "teacher"
 
 
 class AuthPayload(BaseModel):

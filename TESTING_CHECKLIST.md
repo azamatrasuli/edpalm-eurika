@@ -12,9 +12,9 @@
 
 | Среда | URL |
 |---|---|
-| Frontend (Vercel) | https://edplam-eurika.vercel.app |
-| Backend Prod (Render) | https://edplam-eurika.onrender.com |
-| Backend Staging (Render) | https://edplam-eurika-staging.onrender.com |
+| Frontend (Vercel) | https://edpalm-eurika.vercel.app |
+| Backend Prod (Render) | https://edpalm-eurika.onrender.com |
+| Backend Staging (Render) | https://edpalm-eurika-staging.onrender.com |
 | Telegram Bot | @miniapp_edpalm_bot |
 | amoCRM | https://azamatrasuli.amocrm.ru |
 | Supabase | https://supabase.com/dashboard/project/vlywxexthbxehtmopird |
@@ -27,21 +27,21 @@
 
 | Кейс | Ссылка |
 |---|---|
-| **Portal JWT** (Тестовый Ученик, +79246724447) | https://edplam-eurika.vercel.app?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdF9zdHVkZW50XzAwMSIsIm5hbWUiOiJcdTA0MjJcdTA0MzVcdTA0NDFcdTA0NDJcdTA0M2VcdTA0MzJcdTA0NGJcdTA0MzkgXHUwNDIzXHUwNDQ3XHUwNDM1XHUwNDNkXHUwNDM4XHUwNDNhIiwicGhvbmUiOiIrNzkyNDY3MjQ0NDciLCJhZ2VudF9yb2xlIjoic2VsbGVyIiwiZXhwIjoxNzczOTY0Njc4fQ.o6ebuREoSFq3vjsdJ1P86S_fKV9pTrb6BTlqad6T39g |
-| **External Link** (новый лид, TTL 48ч) | https://edplam-eurika.vercel.app?t=test_lead_12345:1774130278:654d783b4d968fd5078620daf960b0df2f8565bb2a6092127486d9409bfdbbd1 |
-| **Guest** (без авторизации) | https://edplam-eurika.vercel.app (incognito) |
+| **Portal JWT** (Тестовый Ученик, +79246724447) | https://edpalm-eurika.vercel.app?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdF9zdHVkZW50XzAwMSIsIm5hbWUiOiJcdTA0MjJcdTA0MzVcdTA0NDFcdTA0NDJcdTA0M2VcdTA0MzJcdTA0NGJcdTA0MzkgXHUwNDIzXHUwNDQ3XHUwNDM1XHUwNDNkXHUwNDM4XHUwNDNhIiwicGhvbmUiOiIrNzkyNDY3MjQ0NDciLCJhZ2VudF9yb2xlIjoic2VsbGVyIiwiZXhwIjoxNzczOTY0Njc4fQ.o6ebuREoSFq3vjsdJ1P86S_fKV9pTrb6BTlqad6T39g |
+| **External Link** (новый лид, TTL 48ч) | https://edpalm-eurika.vercel.app?t=test_lead_12345:1774130278:654d783b4d968fd5078620daf960b0df2f8565bb2a6092127486d9409bfdbbd1 |
+| **Guest** (без авторизации) | https://edpalm-eurika.vercel.app (incognito) |
 
 #### Support
 
 | Кейс | Ссылка |
 |---|---|
-| **Portal JWT** (Анна Тестова, +79161234567) | https://edplam-eurika.vercel.app?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdF9jbGllbnRfMDAyIiwibmFtZSI6Ilx1MDQxMFx1MDQzZFx1MDQzZFx1MDQzMCBcdTA0MjJcdTA0MzVcdTA0NDFcdTA0NDJcdTA0M2VcdTA0MzJcdTA0MzAiLCJwaG9uZSI6Iis3OTE2MTIzNDU2NyIsImFnZW50X3JvbGUiOiJzdXBwb3J0IiwiZXhwIjoxNzczOTY0Njc4fQ.U9DMNay5LICJ4KA6wLU_KTydJxZGFiReL13QRsVElUk&role=support |
+| **Portal JWT** (Анна Тестова, +79161234567) | https://edpalm-eurika.vercel.app?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdF9jbGllbnRfMDAyIiwibmFtZSI6Ilx1MDQxMFx1MDQzZFx1MDQzZFx1MDQzMCBcdTA0MjJcdTA0MzVcdTA0NDFcdTA0NDJcdTA0M2VcdTA0MzJcdTA0MzAiLCJwaG9uZSI6Iis3OTE2MTIzNDU2NyIsImFnZW50X3JvbGUiOiJzdXBwb3J0IiwiZXhwIjoxNzczOTY0Njc4fQ.U9DMNay5LICJ4KA6wLU_KTydJxZGFiReL13QRsVElUk&role=support |
 
 #### Teacher
 
 | Кейс | Ссылка |
 |---|---|
-| **Portal JWT** (Максим Школьников, +79031112233) | https://edplam-eurika.vercel.app?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdF9zdHVkZW50XzAwMyIsIm5hbWUiOiJcdTA0MWNcdTA0MzBcdTA0M2FcdTA0NDFcdTA0MzhcdTA0M2MgXHUwNDI4XHUwNDNhXHUwNDNlXHUwNDNiXHUwNDRjXHUwNDNkXHUwNDM4XHUwNDNhXHUwNDNlXHUwNDMyIiwicGhvbmUiOiIrNzkwMzExMTIyMzMiLCJhZ2VudF9yb2xlIjoidGVhY2hlciIsImV4cCI6MTc3Mzk2NDY3OH0.jzcDqAM_SXnqWHrdikScSTAscKNTQhKho3LUNAg6Efg |
+| **Portal JWT** (Максим Школьников, +79031112233) | https://edpalm-eurika.vercel.app?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdF9zdHVkZW50XzAwMyIsIm5hbWUiOiJcdTA0MWNcdTA0MzBcdTA0M2FcdTA0NDFcdTA0MzhcdTA0M2MgXHUwNDI4XHUwNDNhXHUwNDNlXHUwNDNiXHUwNDRjXHUwNDNkXHUwNDM4XHUwNDNhXHUwNDNlXHUwNDMyIiwicGhvbmUiOiIrNzkwMzExMTIyMzMiLCJhZ2VudF9yb2xlIjoidGVhY2hlciIsImV4cCI6MTc3Mzk2NDY3OH0.jzcDqAM_SXnqWHrdikScSTAscKNTQhKho3LUNAg6Efg |
 
 #### Telegram
 
@@ -53,8 +53,8 @@
 
 | Кейс | Ссылка |
 |---|---|
-| Dashboard Prod | https://edplam-eurika.vercel.app/#/dashboard?key=eureka-dash-2026-prod |
-| Dashboard Staging | https://edplam-eurika.vercel.app/#/dashboard?key=eureka-dash-2026-staging |
+| Dashboard Prod | https://edpalm-eurika.vercel.app/#/dashboard?key=eureka-dash-2026-prod |
+| Dashboard Staging | https://edpalm-eurika.vercel.app/#/dashboard?key=eureka-dash-2026-staging |
 
 #### amoCRM (проверка результатов)
 
@@ -74,7 +74,7 @@
 | 1.3 | Portal JWT (Teacher) | Открыть ссылку Teacher Portal JWT выше | Teacher | ⬜ | |
 | 1.4 | External link | Открыть ссылку External Link выше | Seller | ⬜ | |
 | 1.5 | Telegram Mini App | Telegram → @miniapp_edpalm_bot → Open | Все | ⬜ | |
-| 1.6 | Guest (без токена) | Открыть https://edplam-eurika.vercel.app в incognito | Seller | ⬜ | |
+| 1.6 | Guest (без токена) | Открыть https://edpalm-eurika.vercel.app в incognito | Seller | ⬜ | |
 | 1.7 | Expired token | Подождать 2ч+ → попробовать ссылку → должен отказать | Все | ⬜ | |
 
 ---
@@ -202,9 +202,9 @@
 
 | # | Фича | Как тестировать | Роль | Статус | Баг / Заметка |
 |---|---|---|---|---|---|
-| 11.1 | Внутри диалога | Назвать имя → через 5 сообщений помнит | Все | ⬜ | |
-| 11.2 | Кросс-ролевая память | Назвать имя в seller → support помнит | Все | ⬜ | |
-| 11.3 | Summary | Длинный диалог → создается краткое изложение | Все | ⬜ | |
+| 11.1 | Внутри диалога | Назвать имя → через 5 сообщений помнит | Все | ✅ | Фикс: history[-12:] → динамическое tiktoken-окно до 100K токенов (b148e69) |
+| 11.2 | Кросс-ролевая память | Назвать имя в seller → support помнит | Все | ✅ | Фикс: убран agent_role фильтр из summaries + always-include recent atoms (b148e69). Тест: "Дмитрий Петров" |
+| 11.3 | Summary | Длинный диалог → создается краткое изложение | Все | ✅ | Фикс: running summary в metadata (>30 msg) + idle_minutes=0 при force_new (5ba2230) |
 
 ---
 
@@ -220,7 +220,7 @@
 | 12.6 | Неотвеченные вопросы | Список RAG misses | Seller | ⬜ | |
 | 12.7 | Фильтр по дате | Выбор периода → данные обновляются | Seller | ⬜ | |
 | 12.8 | Фильтр по роли | Seller / Support / All | Все | ⬜ | |
-| 12.9 | API key auth | Открыть https://edplam-eurika.vercel.app/#/dashboard (без key) → 403 | Все | ⬜ | |
+| 12.9 | API key auth | Открыть https://edpalm-eurika.vercel.app/#/dashboard (без key) → 403 | Все | ⬜ | |
 
 ---
 
@@ -241,6 +241,15 @@
 | # теста | Описание бага | Приоритет | Статус фикса | Дата |
 |---|---|---|---|---|
 | 4.4 | Seller не вызывал search_knowledge_base на «Как начать учиться?». Причина: «зачисление/запись» не было в триггерах. Фикс: de33433 | Medium | ✅ Исправлено и проверено | 2026-03-20 |
+| — | llm.py:390 — отсутствовал rag_metadata при превышении лимита итераций tool calls → потеря данных об эскалации/вызовах. Фикс: добавлен rag_metadata | High | ✅ Исправлено | 2026-03-21 |
+| — | tools.py:584 — при эскалации save_contact_mapping вызывался без contact_name → NULL в БД. Фикс: передаётся contact.name | Medium | ✅ Исправлено | 2026-03-21 |
+| — | main.py:91 — хрупкая base64 декодировка JWT (жёстко `+ "=="`) → потенциальная ошибка при нестандартном padding. Фикс: динамический padding | Medium | ✅ Исправлено | 2026-03-21 |
+| — | memory.py:232 — invalidate_cache с agent_role не удаляла ключи (неправильный формат ключа без query_hash). Фикс: startswith() для обоих ветвей | High | ✅ Исправлено | 2026-03-21 |
+| — | dms.py:262-297 — _authenticate() не ловила exceptions → crash при ошибке DMS авторизации; _request() отправляла "Bearer None" при отсутствии токена. Фикс: try-except + проверка token на None | Critical | ✅ Исправлено | 2026-03-21 |
+| — | dms.py (все методы) — _request() может вернуть None → AttributeError на resp.status_code. Фикс: добавлены проверки `resp is None` во всех 8 вызовах | High | ✅ Исправлено | 2026-03-21 |
+| — | auto_escalation.py:70-71 — esc(None) crash при NULL actor_id/channel из БД. Фикс: `conv.get(...) or "—"` | High | ✅ Исправлено | 2026-03-21 |
+| 7.* | Teacher role полностью отсутствовал: нет промпта, нет инструментов, нет enum, нет greeting, нет фронтенд поддержки → учитель получал промпт/инструменты продавца. Фикс: TEACHER_ROLE_PROMPT + TEACHER_TOOL_DEFINITIONS + AgentRole.teacher + greeting + frontend | Critical | ✅ Исправлено | 2026-03-21 |
+| — | useTTS.js — утечка blob URL при unmount компонента → memory leak. Фикс: useEffect cleanup с revokeObjectURL | Medium | ✅ Исправлено | 2026-03-21 |
 
 ---
 

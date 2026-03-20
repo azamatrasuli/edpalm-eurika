@@ -332,10 +332,72 @@ SUPPORT_TOOL_DEFINITIONS: list[dict] = [
 ]
 
 
+TEACHER_TOOL_DEFINITIONS: list[dict] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_knowledge_base",
+            "description": (
+                "Поиск учебного материала в базе знаний (учебники «Просвещения»). "
+                "Используй КАЖДЫЙ РАЗ, когда ученик задаёт вопрос по любому предмету: "
+                "математика, русский, физика, химия, история, биология, география и т.д."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Поисковый запрос по учебной теме. Указывай предмет и класс.",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_client_profile",
+            "description": (
+                "Получить профиль ученика: ФИО, класс, аттестации, тариф. "
+                "Используй для адаптации объяснений под уровень ученика."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "phone": {"type": "string", "description": "Номер телефона родителя/ученика"},
+                },
+                "required": ["phone"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "escalate_to_manager",
+            "description": (
+                "Рекомендовать обращение к наставнику или специалисту. Вызывай если: "
+                "вопрос выходит за пределы учебников, ученик не понимает тему после нескольких объяснений, "
+                "или вопрос касается организации/оплаты."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reason": {"type": "string", "description": "Причина (кратко, на русском)"},
+                },
+                "required": ["reason"],
+            },
+        },
+    },
+]
+
+
 def get_tool_definitions(role: str) -> list[dict]:
     """Return tool definitions for the given agent role."""
     if role == "support":
         return SUPPORT_TOOL_DEFINITIONS
+    if role == "teacher":
+        return TEACHER_TOOL_DEFINITIONS
     return SALES_TOOL_DEFINITIONS
 
 
@@ -581,7 +643,7 @@ class ToolExecutor:
                 if contact:
                     contact_id = contact.id
                     if self.actor_id:
-                        self.repo.save_contact_mapping(self.actor_id, contact.id)
+                        self.repo.save_contact_mapping(self.actor_id, contact.id, contact.name)
 
             if not contact_id:
                 return None  # CRM unavailable — non-blocking

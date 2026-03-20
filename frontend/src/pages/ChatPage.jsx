@@ -224,10 +224,17 @@ export function ChatPage() {
   }, [chat, convList])
 
   const isSupport = agentRole === 'support'
-  const headerSubtitle = isSupport ? 'Служба поддержки EdPalm' : 'AI менеджер EdPalm'
-  const welcomeText = isSupport
-    ? 'Служба поддержки EdPalm. Помогу с вопросами по платформе, документам и оплате.'
-    : 'Виртуальный менеджер EdPalm. Помогу подобрать обучение и отвечу по программам.'
+  const isTeacher = agentRole === 'teacher'
+  const headerSubtitle = isTeacher
+    ? 'Виртуальный учитель EdPalm'
+    : isSupport
+      ? 'Служба поддержки EdPalm'
+      : 'AI менеджер EdPalm'
+  const welcomeText = isTeacher
+    ? 'Виртуальный учитель EdPalm. Помогу разобраться в любом предмете и подготовиться к аттестации.'
+    : isSupport
+      ? 'Служба поддержки EdPalm. Помогу с вопросами по платформе, документам и оплате.'
+      : 'Виртуальный менеджер EdPalm. Помогу подобрать обучение и отвечу по программам.'
 
   // Phase 1: Loading
   if (onboarding.isChecking) {

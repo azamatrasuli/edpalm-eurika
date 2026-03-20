@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { synthesizeSpeech } from '../api/client'
 
 /**
@@ -79,6 +79,15 @@ export function useTTS(auth, { onError } = {}) {
       onError?.('Не удалось воспроизвести голос. Попробуйте ещё раз')
     }
   }, [auth, playingId, ttsState, stop])
+
+  // Cleanup blob URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    const cache = cacheRef.current
+    return () => {
+      cache.forEach((url) => URL.revokeObjectURL(url))
+      cache.clear()
+    }
+  }, [])
 
   return { play, stop, playingId, ttsState }
 }

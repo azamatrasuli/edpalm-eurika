@@ -259,40 +259,54 @@ class RealDMSService(DMSServiceBase):
             )
         return self._client
 
-    def _authenticate(self) -> str:
-        client = self._get_client()
-        hashed = _hash_dms_password(self.settings.dms_password)
-        resp = client.post(
-            "/v1/api/auth",
-            json={
-                "username": self.settings.dms_username,
-                "password": hashed,
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        # grpc-gateway returns camelCase keys
-        self._token = data.get("accessToken") or data.get("access_token")
-        logger.info("DMS authenticated as %s", self.settings.dms_username)
-        return self._token
+    def _authenticate(self) -> str | None:
+        try:
+            client = self._get_client()
+            hashed = _hash_dms_password(self.settings.dms_password)
+            resp = client.post(
+                "/v1/api/auth",
+                json={
+                    "username": self.settings.dms_username,
+                    "password": hashed,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            # grpc-gateway returns camelCase keys
+            self._token = data.get("accessToken") or data.get("access_token")
+            if not self._token:
+                logger.error("DMS auth response missing accessToken: %s", list(data.keys()))
+                return None
+            logger.info("DMS authenticated as %s", self.settings.dms_username)
+            return self._token
+        except Exception:
+            logger.exception("DMS authentication failed")
+            self._token = None
+            return None
 
-    def _ensure_token(self) -> str:
+    def _ensure_token(self) -> str | None:
         if not self._token:
             self._authenticate()
         return self._token
 
-    def _request(self, method: str, path: str, **kwargs) -> "httpx.Response":
+    def _request(self, method: str, path: str, **kwargs) -> "httpx.Response | None":
         """Make an authenticated request with auto-retry on 401."""
         from app.logging_config import log_external_call
 
         client = self._get_client()
         token = self._ensure_token()
+        if not token:
+            logger.error("DMS: no auth token available, cannot make request %s %s", method, path)
+            return None
         kwargs.setdefault("headers", {})["Authorization"] = f"Bearer {token}"
         with log_external_call("dms", f"{method} {path}"):
             resp = client.request(method, path, **kwargs)
             if resp.status_code == 401:
                 logger.info("DMS token expired, re-authenticating")
                 token = self._authenticate()
+                if not token:
+                    logger.error("DMS re-authentication failed for %s %s", method, path)
+                    return resp
                 kwargs["headers"]["Authorization"] = f"Bearer {token}"
                 resp = client.request(method, path, **kwargs)
         return resp
@@ -300,7 +314,7 @@ class RealDMSService(DMSServiceBase):
     def _search_contact_raw(self, query: str) -> dict | None:
         """Search DMS contacts by query string, return first match or None."""
         resp = self._request("GET", "/v1/api/contacts/search", params={"q": query, "limit": 5})
-        if resp.status_code != 200:
+        if resp is None or resp.status_code != 200:
             logger.error("DMS search failed: %d %s", resp.status_code, resp.text)
             return None
         data = resp.json()
@@ -387,7 +401,7 @@ class RealDMSService(DMSServiceBase):
                 "POST", "/v1/api/students",
                 json={"contact_id": contact_id, "limit": 20},
             )
-            if resp.status_code != 200:
+            if resp is None or resp.status_code != 200:
                 logger.error("DMS get_students failed: %d %s", resp.status_code, resp.text)
                 return []
             data = resp.json()
@@ -402,8 +416,9 @@ class RealDMSService(DMSServiceBase):
     def get_student_info(self, student_id: int) -> DMSStudent | None:
         try:
             resp = self._request("GET", "/v1/api/student", params={"student_id": student_id})
-            if resp.status_code != 200:
-                logger.error("DMS get_student failed: %d %s", resp.status_code, resp.text)
+            if resp is None or resp.status_code != 200:
+                if resp is not None:
+                    logger.error("DMS get_student failed: %d %s", resp.status_code, resp.text)
                 return None
             data = resp.json()
             return self._parse_student(data)
@@ -415,7 +430,7 @@ class RealDMSService(DMSServiceBase):
         """Fetch full product catalog from DMS."""
         try:
             resp = self._request("GET", "/v1/api/products")
-            if resp.status_code != 200:
+            if resp is None or resp.status_code != 200:
                 logger.error("DMS get_products failed: %d %s", resp.status_code, resp.text)
                 return []
             data = resp.json()
@@ -478,7 +493,7 @@ class RealDMSService(DMSServiceBase):
             }
             logger.info("DMS create_order payload: %s", payload)
             resp = self._request("POST", "/v1/api/orders", json=payload)
-            if resp.status_code not in (200, 201):
+            if resp is None or resp.status_code not in (200, 201):
                 logger.error("DMS create_order failed: %d %s", resp.status_code, resp.text)
                 return None
             data = resp.json()
@@ -499,7 +514,7 @@ class RealDMSService(DMSServiceBase):
         """Fetch student birthdate from raw API."""
         try:
             resp = self._request("GET", "/v1/api/student", params={"student_id": student_id})
-            if resp.status_code != 200:
+            if resp is None or resp.status_code != 200:
                 return None
             data = resp.json()
             contact = data.get("contact", {})
@@ -514,7 +529,7 @@ class RealDMSService(DMSServiceBase):
                 "POST", "/v1/api/payment/link",
                 json={"id": order_uuid, "pay_type": pay_type},
             )
-            if resp.status_code != 200:
+            if resp is None or resp.status_code != 200:
                 logger.error("DMS get_payment_link failed: %d %s", resp.status_code, resp.text)
                 return None
             data = resp.json()
@@ -533,7 +548,7 @@ class RealDMSService(DMSServiceBase):
         """Get order status: 0=draft, 1=pending, 2=paid, 4=refund."""
         try:
             resp = self._request("GET", f"/v1/api/orders/{order_uuid}")
-            if resp.status_code != 200:
+            if resp is None or resp.status_code != 200:
                 logger.error("DMS get_order_status failed: %d %s", resp.status_code, resp.text)
                 return None
             data = resp.json()

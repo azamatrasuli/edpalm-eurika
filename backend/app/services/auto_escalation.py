@@ -66,10 +66,10 @@ def _notify_auto_escalation(conv: dict, reason: str) -> None:
     def esc(t: str) -> str:
         return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    title = esc(conv.get("title", "Без заголовка") or "Без заголовка")
-    actor_id = esc(conv.get("actor_id", "—"))
-    channel = esc(conv.get("channel", "—"))
-    conv_id = esc(str(conv.get("id", "—")))
+    title = esc(conv.get("title") or "Без заголовка")
+    actor_id = esc(conv.get("actor_id") or "—")
+    channel = esc(conv.get("channel") or "—")
+    conv_id = esc(str(conv.get("id") or "—"))
 
     text = (
         f"<b>⏰ Автоэскалация (поддержка)</b>\n\n"

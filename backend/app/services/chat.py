@@ -102,8 +102,23 @@ class ChatService:
             if child_name and child_grade:
                 child_snippet = f" Вижу, {child_name} в {child_grade} классе."
 
+        is_teacher = actor.agent_role == AgentRole.teacher
+
         # --- Build greeting by channel × role ---
-        if is_support:
+        if is_teacher:
+            if name and child_snippet:
+                greeting = f"{hi}, {name}!{child_snippet} Готова помочь с учёбой — спрашивай!"
+            elif name:
+                greeting = (
+                    f"{hi}, {name}! Я Эврика — твой виртуальный учитель. "
+                    "Помогу разобраться в любой теме. О чём хочешь спросить?"
+                )
+            else:
+                greeting = (
+                    f"{hi}! Я Эврика — твой виртуальный учитель в EdPalm. "
+                    "Помогу с любым предметом. Что будем разбирать?"
+                )
+        elif is_support:
             if name and child_snippet:
                 greeting = f"{hi}, {name}!{child_snippet} Чем могу помочь?"
             elif name:

@@ -228,9 +228,7 @@ class MemoryService:
 
     def invalidate_cache(self, actor_id: str, agent_role: str | None = None) -> None:
         """Clear cached memory for an actor (e.g., after new summary is created)."""
-        if agent_role:
-            _memory_cache.pop(f"{actor_id}:{agent_role}", None)
-        else:
-            for key in list(_memory_cache.keys()):
-                if key.startswith(f"{actor_id}:"):
-                    _memory_cache.pop(key, None)
+        prefix = f"{actor_id}:{agent_role}:" if agent_role else f"{actor_id}:"
+        for key in list(_memory_cache.keys()):
+            if key.startswith(prefix):
+                _memory_cache.pop(key, None)

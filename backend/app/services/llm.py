@@ -387,7 +387,8 @@ class LLMService:
         fallback = "Извините, возникла сложность с обработкой запроса. Попробуйте переформулировать вопрос."
         for ch in fallback:
             yield LLMChunk(token=ch)
-        return LLMResult(text=fallback, usage_tokens=None)
+        return LLMResult(text=fallback, usage_tokens=None,
+                         rag_metadata={"tool_calls": all_tool_calls_made, "escalation": escalation_triggered})
 
     # ---- suggestion chips generation ----------------------------------------
 
