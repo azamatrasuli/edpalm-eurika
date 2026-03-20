@@ -158,8 +158,14 @@ export function ChatPage() {
     setSidebarOpen(false)
   }, [chat, convList, tts])
 
+  const newChatCooldownRef = useRef(0)
   const handleNewChat = useCallback(async () => {
     if (isCreating) return
+    // Cooldown: prevent rapid-fire chat creation (3 sec)
+    const now = Date.now()
+    if (now - newChatCooldownRef.current < 3000) return
+    newChatCooldownRef.current = now
+
     setIsCreating(true)
     try {
       const data = await chat.startNewChat()
@@ -260,11 +266,11 @@ export function ChatPage() {
 
       {/* Chat area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <header className="flex items-center gap-3 px-5 py-3 pt-[calc(12px+env(safe-area-inset-top,0px))] bg-header backdrop-blur-[16px] border-b border-header-border shrink-0 z-10 max-sm:px-4">
+        <header className="flex items-center gap-3 px-5 py-2.5 pt-[calc(10px+env(safe-area-inset-top,0px))] bg-header backdrop-blur-[16px] border-b border-header-border shrink-0 z-10 max-sm:px-4">
           {/* Hamburger menu for mobile */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="sm:hidden p-1.5 -ml-1 rounded-lg hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
+            className="sm:hidden p-2 -ml-1 rounded-lg hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="3" y1="5" x2="17" y2="5" />
@@ -273,13 +279,13 @@ export function ChatPage() {
             </svg>
           </button>
 
-          <img className="w-10 h-10 rounded-full object-cover shrink-0 bg-surface-alt" alt="Эврика" {...avatarProps(40)} />
+          <img className="w-10 h-10 rounded-full object-cover shrink-0 bg-surface-alt ring-1 ring-border-subtle" alt="Эврика" {...avatarProps(40)} />
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-base font-semibold leading-tight text-fg">Эврика</span>
-              <span className="w-2 h-2 rounded-full bg-status shrink-0 animate-[status-pulse_2s_infinite_ease-in-out]" />
+              <span className="text-base font-semibold leading-tight text-fg tracking-tight">Эврика</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-status shrink-0 animate-[status-pulse_2s_infinite_ease-in-out]" />
             </div>
-            <span className="text-[13px] text-fg-muted leading-tight">{headerSubtitle}</span>
+            <span className="text-[13px] text-fg-tertiary leading-tight">{headerSubtitle}</span>
           </div>
         </header>
 

@@ -160,6 +160,16 @@ class ConversationRepository:
                             archived_at=row.get("archived_at"),
                         )
 
+                # Guard: limit conversations per user per hour
+                if force_new:
+                    cur.execute(
+                        "SELECT COUNT(*) AS cnt FROM conversations WHERE actor_id = %s AND created_at > NOW() - INTERVAL '1 hour'",
+                        (actor.actor_id,),
+                    )
+                    hourly = cur.fetchone()
+                    if hourly and (hourly.get("cnt") or hourly[0]) > 20:
+                        raise ValueError("conversation_limit_exceeded")
+
                 # Create new conversation
                 cur.execute(
                     """

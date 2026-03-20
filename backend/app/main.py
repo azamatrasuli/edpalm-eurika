@@ -67,27 +67,48 @@ app.add_middleware(
 )
 
 
-# ---- Simple in-memory rate limiter ----------------------------------------
-# Limits per-IP requests to expensive endpoints (LLM, Whisper).
-# Not a substitute for WAF/CDN rate limiting in production.
+# ---- Rate limiting (per-user + per-IP) ------------------------------------
 
-_rate_buckets: dict[str, list[float]] = defaultdict(list)
-_RATE_LIMIT = 30          # max requests per window
-_RATE_WINDOW = 60.0       # seconds
-_RATE_PATHS = {"/api/v1/chat/stream", "/api/v1/chat/voice", "/api/v1/chat/transcribe", "/api/v1/chat/tts"}
+from app.rate_limit import check_ip_rate, check_user_rate, get_endpoint_group, is_force_new_conversation
 
 
-def _check_rate_limit(key: str) -> bool:
-    """Return True if the request is allowed, False if rate-limited."""
-    now = _time()
-    bucket = _rate_buckets[key]
-    # Prune old entries
-    cutoff = now - _RATE_WINDOW
-    _rate_buckets[key] = bucket = [t for t in bucket if t > cutoff]
-    if len(bucket) >= _RATE_LIMIT:
-        return False
-    bucket.append(now)
-    return True
+def _extract_actor_id_from_request(body_bytes: bytes, path: str) -> str | None:
+    """Try to extract actor_id from request body auth payload. Lightweight, no full auth."""
+    import json as _json
+    try:
+        body = _json.loads(body_bytes)
+        auth = body.get("auth") if isinstance(body, dict) else None
+        if not auth:
+            return None
+        # Guest
+        if auth.get("guest_id"):
+            return f"guest:{auth['guest_id']}"
+        # Portal JWT — extract user_id from payload without full verification
+        if auth.get("portal_token"):
+            import base64
+            parts = auth["portal_token"].split(".")
+            if len(parts) >= 2:
+                payload = _json.loads(base64.b64decode(parts[1] + "=="))
+                uid = payload.get("user_id")
+                if uid:
+                    return f"portal:{uid}"
+        # Telegram
+        if auth.get("telegram_init_data"):
+            from urllib.parse import parse_qs
+            params = parse_qs(auth["telegram_init_data"])
+            user_json = params.get("user", [None])[0]
+            if user_json:
+                user = _json.loads(user_json)
+                if user.get("id"):
+                    return f"telegram:{user['id']}"
+        # External
+        if auth.get("external_token"):
+            parts = auth["external_token"].split(":")
+            if len(parts) >= 1:
+                return f"external:{parts[0]}"
+    except Exception:
+        pass
+    return None
 
 
 @app.middleware("http")
@@ -98,15 +119,44 @@ async def with_request_id(request: Request, call_next):
     # Set request context for structured logging
     token = request_ctx.set({"request_id": req_id})
 
-    # Rate limit expensive endpoints
-    if request.url.path in _RATE_PATHS:
-        client_ip = request.client.host if request.client else "unknown"
-        if not _check_rate_limit(client_ip):
+    path = request.url.path
+    client_ip = request.client.host if request.client else "unknown"
+
+    # 1. Global per-IP rate limit (DDoS protection)
+    if get_endpoint_group(path) is not None:
+        ip_allowed, ip_retry = check_ip_rate(client_ip)
+        if not ip_allowed:
             request_ctx.reset(token)
             resp = error_response("rate_limit")
-            resp.headers["Retry-After"] = "60"
+            resp.headers["Retry-After"] = str(ip_retry)
             resp.headers["x-request-id"] = req_id
             return resp
+
+    # 2. Per-user rate limit (read body for auth)
+    if get_endpoint_group(path) is not None and request.method == "POST":
+        try:
+            body_bytes = await request.body()
+            actor_id = _extract_actor_id_from_request(body_bytes, path)
+            if actor_id:
+                # Special handling: only rate-limit conversation_create for force_new
+                import json as _json
+                body_dict = _json.loads(body_bytes) if body_bytes else {}
+                if path == "/api/v1/conversations/start" and not body_dict.get("force_new"):
+                    pass  # Resume existing conversation — no rate limit
+                else:
+                    allowed, msg, retry_after = check_user_rate(actor_id, path)
+                    if not allowed:
+                        request_ctx.reset(token)
+                        from fastapi.responses import JSONResponse
+                        resp = JSONResponse(
+                            status_code=429,
+                            content={"error": msg, "code": "rate_limit", "retry_after": retry_after},
+                        )
+                        resp.headers["Retry-After"] = str(retry_after)
+                        resp.headers["x-request-id"] = req_id
+                        return resp
+        except Exception:
+            pass  # Rate limit extraction failed — allow request through
 
     response = await call_next(request)
     duration_ms = int((perf_counter() - started) * 1000)
