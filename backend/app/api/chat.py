@@ -293,7 +293,11 @@ def start_conversation(req: StartConversationRequest) -> StartConversationRespon
     actor = auth_service.resolve(req.auth)
     actor = actor.model_copy(update={"agent_role": req.agent_role})
     enrich_ctx(user_id=actor.actor_id, agent_role=req.agent_role.value)
-    ctx = chat_service.ensure_conversation(actor, conversation_id=req.conversation_id, force_new=req.force_new)
+    try:
+        ctx = chat_service.ensure_conversation(actor, conversation_id=req.conversation_id, force_new=req.force_new)
+    except Exception:
+        logger.exception("ensure_conversation failed for %s force_new=%s", actor.actor_id, req.force_new)
+        raise
     # Generate greeting only for new conversations (no history)
     if not ctx.history:
         agent_role_val = actor.agent_role.value if hasattr(actor.agent_role, "value") else str(actor.agent_role)
@@ -319,6 +323,24 @@ def start_conversation(req: StartConversationRequest) -> StartConversationRespon
         status=ctx.conversation.status,
         escalated_reason=ctx.conversation.escalated_reason,
     )
+
+
+@router.get("/debug/force-new-test")
+def debug_force_new_test():
+    """Temporary debug endpoint — remove after diagnosing force_new 500."""
+    import traceback
+    try:
+        from app.models.chat import AuthPayload, AgentRole
+        req_auth = AuthPayload(guest_id="debug-force-new-endpoint")
+        actor = auth_service.resolve(req_auth)
+        actor = actor.model_copy(update={"agent_role": AgentRole.sales})
+        ctx = chat_service.ensure_conversation(actor, conversation_id=None, force_new=True)
+        greeting = chat_service.generate_greeting(actor, ctx.conversation.id)
+        return {"ok": True, "conversation_id": ctx.conversation.id, "greeting": greeting[:80]}
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error("debug force_new failed:\n%s", tb)
+        return {"ok": False, "error": str(e), "traceback": tb}
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=ConversationMessagesResponse)
