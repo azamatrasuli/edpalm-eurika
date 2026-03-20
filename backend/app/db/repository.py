@@ -200,7 +200,7 @@ class ConversationRepository:
                         (actor.actor_id,),
                     )
                     hourly = cur.fetchone()
-                    if hourly and (hourly.get("cnt") or hourly[0]) > 20:
+                    if hourly and (hourly.get("cnt", 0) or 0) > 20:
                         raise ValueError("conversation_limit_exceeded")
 
                 # Create new conversation

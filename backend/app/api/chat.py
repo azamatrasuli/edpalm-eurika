@@ -325,23 +325,6 @@ def start_conversation(req: StartConversationRequest) -> StartConversationRespon
     )
 
 
-@router.get("/debug/force-new-test")
-def debug_force_new_test():
-    """Temporary debug endpoint — remove after diagnosing force_new 500."""
-    import traceback
-    try:
-        from app.models.chat import AuthPayload, AgentRole
-        req_auth = AuthPayload(guest_id="debug-force-new-endpoint")
-        actor = auth_service.resolve(req_auth)
-        actor = actor.model_copy(update={"agent_role": AgentRole.sales})
-        ctx = chat_service.ensure_conversation(actor, conversation_id=None, force_new=True)
-        greeting = chat_service.generate_greeting(actor, ctx.conversation.id)
-        return {"ok": True, "conversation_id": ctx.conversation.id, "greeting": greeting[:80]}
-    except Exception as e:
-        tb = traceback.format_exc()
-        logger.error("debug force_new failed:\n%s", tb)
-        return {"ok": False, "error": str(e), "traceback": tb}
-
 
 @router.post("/conversations/{conversation_id}/messages", response_model=ConversationMessagesResponse)
 def conversation_messages(conversation_id: str, auth: AuthPayload) -> ConversationMessagesResponse:
