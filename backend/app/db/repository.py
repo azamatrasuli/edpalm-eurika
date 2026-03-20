@@ -160,8 +160,41 @@ class ConversationRepository:
                             archived_at=row.get("archived_at"),
                         )
 
-                # Guard: limit conversations per user per hour
+                # Guard: reuse existing empty conversation instead of creating new
                 if force_new:
+                    cur.execute(
+                        """
+                        SELECT id, actor_id, channel, agent_role, status,
+                               title, message_count, last_user_message,
+                               escalated_at, escalated_reason,
+                               created_at, updated_at, archived_at
+                        FROM conversations
+                        WHERE actor_id = %s AND agent_role = %s
+                          AND archived_at IS NULL
+                          AND (message_count IS NULL OR message_count <= 1)
+                        ORDER BY created_at DESC LIMIT 1
+                        """,
+                        (actor.actor_id, agent_role),
+                    )
+                    empty_row = cur.fetchone()
+                    if empty_row:
+                        return StoredConversation(
+                            id=str(empty_row["id"]),
+                            actor_id=empty_row["actor_id"],
+                            channel=empty_row["channel"],
+                            agent_role=empty_row.get("agent_role", "sales") or "sales",
+                            status=empty_row.get("status", "active") or "active",
+                            title=empty_row.get("title"),
+                            message_count=empty_row.get("message_count", 0) or 0,
+                            last_user_message=empty_row.get("last_user_message"),
+                            escalated_at=empty_row.get("escalated_at"),
+                            escalated_reason=empty_row.get("escalated_reason"),
+                            created_at=empty_row.get("created_at"),
+                            updated_at=empty_row.get("updated_at"),
+                            archived_at=empty_row.get("archived_at"),
+                        )
+
+                    # Hard limit: max 20 conversations per hour
                     cur.execute(
                         "SELECT COUNT(*) AS cnt FROM conversations WHERE actor_id = %s AND created_at > NOW() - INTERVAL '1 hour'",
                         (actor.actor_id,),
