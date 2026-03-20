@@ -307,6 +307,105 @@ class MemoryRepository:
             logger.warning("Failed to search memory atoms for actor=%s", actor_id, exc_info=True)
             return []
 
+    def get_recent_atoms(
+        self,
+        actor_id: str,
+        top_k: int = 5,
+    ) -> list[MemoryAtom]:
+        """Get most recent active atoms for an actor, regardless of similarity.
+
+        Used to always inject identity facts (name, phone, etc.) into context.
+        """
+        if not self._has_db():
+            return []
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return []
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, actor_id, agent_role, conversation_id, fact_type,
+                               subject, predicate, object, confidence, created_at
+                        FROM agent_memory_atoms
+                        WHERE actor_id = %s
+                          AND superseded_by IS NULL
+                          AND (expires_at IS NULL OR expires_at > NOW())
+                        ORDER BY created_at DESC
+                        LIMIT %s
+                        """,
+                        [actor_id, top_k],
+                    )
+                    rows = cur.fetchall()
+
+            return [
+                MemoryAtom(
+                    id=str(row["id"]),
+                    actor_id=row["actor_id"],
+                    agent_role=row["agent_role"],
+                    fact_type=row["fact_type"],
+                    subject=row["subject"],
+                    predicate=row["predicate"],
+                    object=row.get("object"),
+                    confidence=row.get("confidence", 0.8),
+                    conversation_id=str(row["conversation_id"]) if row.get("conversation_id") else None,
+                    similarity=1.0,  # always relevant
+                    created_at=row.get("created_at"),
+                )
+                for row in rows
+            ]
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to get recent atoms for actor=%s", actor_id, exc_info=True)
+            return []
+
+    def get_recent_summaries(
+        self,
+        actor_id: str,
+        top_k: int = 2,
+    ) -> list[ConversationSummary]:
+        """Get most recent summaries for an actor, regardless of similarity."""
+        if not self._has_db():
+            return []
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return []
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, conversation_id, actor_id, agent_role, summary_type,
+                               summary_text, topics, decisions, preferences, unresolved,
+                               created_at
+                        FROM agent_conversation_summaries
+                        WHERE actor_id = %s AND summary_type = 'conversation'
+                        ORDER BY created_at DESC
+                        LIMIT %s
+                        """,
+                        [actor_id, top_k],
+                    )
+                    rows = cur.fetchall()
+
+            return [
+                ConversationSummary(
+                    id=str(row["id"]),
+                    conversation_id=str(row["conversation_id"]),
+                    actor_id=row["actor_id"],
+                    agent_role=row["agent_role"],
+                    summary_type=row["summary_type"],
+                    summary_text=row["summary_text"],
+                    topics=row.get("topics") or [],
+                    decisions=row.get("decisions") or [],
+                    preferences=row.get("preferences") or [],
+                    unresolved=row.get("unresolved") or [],
+                    similarity=1.0,
+                    created_at=row.get("created_at"),
+                )
+                for row in rows
+            ]
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to get recent summaries for actor=%s", actor_id, exc_info=True)
+            return []
+
     # ---- Idle conversations for summarization --------------------------------
 
     def get_idle_unsummarized(self, idle_minutes: int = 30, min_messages: int = 4) -> list[dict]:

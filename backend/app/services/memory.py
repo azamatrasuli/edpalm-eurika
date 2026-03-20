@@ -150,7 +150,7 @@ class MemoryService:
         cross_types = getattr(self.settings, "memory_cross_role_types", "preference,entity")
         cross_role_list = [t.strip() for t in cross_types.split(",") if t.strip()]
 
-        # Parallel-ish retrieval (both use DB, sequentially here but fast with HNSW)
+        # Semantic search (similarity-based)
         summaries = self.repo.search_summaries(
             actor_id=actor_id,
             query_embedding=query_embedding,
@@ -168,9 +168,29 @@ class MemoryService:
             top_k=getattr(self.settings, "memory_atoms_top_k", 5),
         )
 
+        # Always include recent facts and summaries (identity, context)
+        # regardless of semantic similarity — name, phone, grade are always relevant
+        recent_atoms = self.repo.get_recent_atoms(actor_id, top_k=5)
+        recent_summaries = self.repo.get_recent_summaries(actor_id, top_k=2)
+
+        # Merge: deduplicate by id
+        seen_atom_ids = {a.id for a in atoms}
+        for ra in recent_atoms:
+            if ra.id not in seen_atom_ids:
+                atoms.append(ra)
+                seen_atom_ids.add(ra.id)
+
+        seen_summary_ids = {s.id for s in summaries}
+        for rs in recent_summaries:
+            if rs.id not in seen_summary_ids:
+                summaries.append(rs)
+                seen_summary_ids.add(rs.id)
+
         if not summaries and not atoms:
             _memory_cache[cache_key] = ""
             return None
+
+        logger.info("Memory for %s: %d atoms, %d summaries", actor_id, len(atoms), len(summaries))
 
         # Score and sort
         scored_summaries = [
