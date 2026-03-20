@@ -28,6 +28,7 @@ function ArchiveIcon({ size = 14 }) {
 
 export function ConversationItem({ conversation, isActive, onSelect, onArchive, onDelete, onRename, archiveLabel }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [titleFlash, setTitleFlash] = useState(false)
@@ -36,6 +37,7 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const inputRef = useRef(null)
   const menuRef = useRef(null)
+  const triggerRef = useRef(null)
   const prevTitleRef = useRef(conversation.title)
   const touchRef = useRef({ startX: 0, startY: 0, started: false, locked: false })
 
@@ -126,6 +128,15 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
 
   function handleMenuToggle(e) {
     e.stopPropagation()
+    if (!menuOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      const menuW = 176 // w-44 = 11rem = 176px
+      const menuH = 140 // approx height of 3-item menu
+      const spaceBelow = window.innerHeight - rect.bottom
+      const top = spaceBelow < menuH ? rect.top - menuH : rect.bottom + 4
+      const left = Math.min(rect.right - menuW, window.innerWidth - menuW - 8)
+      setMenuPos({ top, left })
+    }
     setMenuOpen(!menuOpen)
   }
 
@@ -247,6 +258,7 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
           {/* Three-dot trigger — inside the sliding item */}
           {!editing && (
             <button
+              ref={triggerRef}
               onClick={handleMenuToggle}
               className="shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-all"
             >
@@ -264,7 +276,8 @@ export function ConversationItem({ conversation, isActive, onSelect, onArchive, 
       {menuOpen && (
         <div
           ref={menuRef}
-          className="absolute right-2 top-full z-50 mt-1 w-44 rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-[#2a2a2a] shadow-lg py-1 animate-[fade-in_0.12s_ease]"
+          className="fixed z-[100] w-44 rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-[#2a2a2a] shadow-xl py-1 animate-[fade-in_0.12s_ease]"
+          style={{ top: menuPos.top, left: menuPos.left }}
         >
           <button
             onClick={handleStartRename}
