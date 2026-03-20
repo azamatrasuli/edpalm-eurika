@@ -254,7 +254,10 @@ export function ChatPage() {
         searchQuery={convList.searchQuery}
         hasMore={convList.hasMore}
         isOpen={sidebarOpen}
-        isCreating={isCreating}
+        isCreating={isCreating || (() => {
+          const ac = convList.conversations.find((c) => c.id === convList.activeId)
+          return ac && (!ac.message_count || ac.message_count <= 1)
+        })()}
         onClose={() => setSidebarOpen(false)}
         onSelect={handleSelectConversation}
         onNewChat={handleNewChat}
