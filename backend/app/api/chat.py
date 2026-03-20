@@ -427,7 +427,7 @@ async def chat_voice(
     if not transcript:
         return error_response("stt_unavailable")
 
-    role_enum = AgentRole(agent_role) if agent_role in ("sales", "support") else AgentRole.sales
+    role_enum = AgentRole(agent_role) if agent_role in ("sales", "support", "teacher") else AgentRole.sales
     auth = AuthPayload.model_validate_json(auth_json)
     actor = auth_service.resolve(auth)
     actor = actor.model_copy(update={"agent_role": role_enum})
@@ -453,11 +453,17 @@ def amocrm_oauth_callback(code: str):
     raise HTTPException(500, "Failed to exchange amoCRM authorization code")
 
 
-@router.post("/amocrm/chat/webhook/{scope_id}")
-async def amocrm_chat_webhook(scope_id: str, request: Request):
-    """Receive manager replies from amoCRM imBox. Always returns 200."""
+async def _process_chat_webhook(request: Request, scope_id: str | None = None):
+    """Core logic for amoCRM imBox webhooks. Supports v1 and v2 formats."""
     body = await request.body()
     body_str = body.decode("utf-8", errors="replace")
+
+    logger.info(
+        "amoCRM chat webhook: scope_id=%s body_len=%d headers=%s",
+        scope_id, len(body_str),
+        {k: v for k, v in request.headers.items() if k.lower() in ("x-signature", "content-type")},
+    )
+    logger.debug("amoCRM chat webhook body: %s", body_str[:2000])
 
     signature = request.headers.get("X-Signature", "")
     if not signature:
@@ -472,60 +478,139 @@ async def amocrm_chat_webhook(scope_id: str, request: Request):
     except Exception:
         return {"status": "invalid_json"}
 
+    # --- Parse webhook: support BOTH v1 and v2 formats ---
+    conversation_id = ""
+    sender_name = ""
+    sender_id = ""
+    text = ""
+    msgid = ""
+
     event_type = payload.get("event_type")
-    inner = payload.get("payload", payload)
 
     if event_type == "new_message":
+        # V1 format: {"event_type": "new_message", "payload": {...}}
+        inner = payload.get("payload", {})
         conversation_id = inner.get("conversation_id", "")
         sender = inner.get("sender", {})
+        sender_name = sender.get("name", "")
+        sender_id = sender.get("id", "")
         message = inner.get("message", {})
         text = message.get("text", "")
         msgid = inner.get("msgid", "")
+        logger.info("Webhook v1: conv=%s sender=%s text=%s", conversation_id, sender_name, text[:80])
 
-        logger.info("Manager reply via imBox: conv=%s sender=%s", conversation_id, sender.get("name"))
+    elif "message" in payload and not event_type:
+        # V2 format: {"account_id": "...", "time": ..., "message": {...}}
+        msg_wrapper = payload["message"]
+        conv_data = msg_wrapper.get("conversation", {})
+        # client_id = our conversation_id (agent_chat_...), id = amoCRM internal UUID
+        conversation_id = conv_data.get("client_id") or conv_data.get("id", "")
+        sender_data = msg_wrapper.get("sender", {})
+        sender_name = sender_data.get("name", "")
+        sender_id = sender_data.get("id", "")
+        inner_message = msg_wrapper.get("message", {})
+        text = inner_message.get("text", "")
+        msgid = inner_message.get("id", "")
+        # V2 may have receiver.client_id as fallback for finding actor
+        receiver_client_id = msg_wrapper.get("receiver", {}).get("client_id", "")
+        logger.info(
+            "Webhook v2: conv=%s sender_id=%s receiver_client=%s text=%s",
+            conversation_id, sender_id, receiver_client_id, text[:80],
+        )
+    else:
+        logger.info("amoCRM webhook: unrecognized format, keys=%s", list(payload.keys()))
+        return {"status": "ok"}
 
-        actor_id = imbox_service.repo.find_actor_by_chat_conversation_id(conversation_id)
-        if actor_id and text:
-            # Check for resolution commands
-            cmd = text.strip().lower()
-            if cmd in ("/resolve", "/close", "/готово"):
-                agent_conv_id = chat_service.repo.find_escalated_conversation(actor_id)
-                if agent_conv_id:
-                    resolved = chat_service.repo.resolve_escalation(
-                        agent_conv_id, resolved_by=sender.get("name", "manager"),
-                    )
-                    if resolved:
-                        event_tracker.track(
-                            "escalation_resolved",
-                            conversation_id=agent_conv_id,
-                            actor_id=actor_id,
-                            data={"resolved_by": sender.get("name", "manager"), "source": "imbox"},
-                        )
-                        logger.info("Escalation resolved via imBox command for conv=%s", agent_conv_id)
-                return {"status": "resolved"}
+    if not text:
+        logger.info("amoCRM webhook: empty text, skipping")
+        return {"status": "ok"}
 
-            # Save raw manager message
-            imbox_service.repo.save_manager_message(
-                actor_id=actor_id,
-                content=text,
-                conversation_id=conversation_id,
-                amocrm_msgid=msgid,
-                sender_name=sender.get("name"),
+    # Find actor by conversation_id
+    actor_id = imbox_service.repo.find_actor_by_chat_conversation_id(conversation_id)
+    if not actor_id:
+        logger.warning("amoCRM webhook: no actor found for conv=%s", conversation_id)
+        return {"status": "actor_not_found"}
+
+    display_name = sender_name or "Менеджер"
+
+    # Check for resolution commands
+    cmd = text.strip().lower()
+    if cmd in ("/resolve", "/close", "/готово"):
+        agent_conv_id = chat_service.repo.find_escalated_conversation(actor_id)
+        if agent_conv_id:
+            resolved = chat_service.repo.resolve_escalation(
+                agent_conv_id, resolved_by=display_name,
             )
+            if resolved:
+                event_tracker.track(
+                    "escalation_resolved",
+                    conversation_id=agent_conv_id,
+                    actor_id=actor_id,
+                    data={"resolved_by": display_name, "source": "imbox"},
+                )
+                logger.info("Escalation resolved via imBox command for conv=%s", agent_conv_id)
+        return {"status": "resolved"}
 
-            # Inject into agent conversation so client sees it
-            try:
-                agent_conv_id = chat_service.repo.find_escalated_conversation(actor_id)
-                if agent_conv_id:
-                    sender_name = sender.get("name", "Менеджер")
-                    chat_service.repo.save_message(
-                        conversation_id=agent_conv_id,
-                        role="assistant",
-                        content=f"[{sender_name}]: {text}",
-                        metadata={"source": "manager", "sender_name": sender_name},
-                    )
-                    logger.info("Manager message injected into conv=%s for actor=%s", agent_conv_id, actor_id)
-            except Exception:
-                logger.warning("Failed to inject manager message into conversation", exc_info=True)
+    # Save raw manager message
+    imbox_service.repo.save_manager_message(
+        actor_id=actor_id,
+        content=text,
+        conversation_id=conversation_id,
+        amocrm_msgid=msgid,
+        sender_name=display_name,
+    )
+
+    # Inject into agent conversation so client sees it in real-time
+    try:
+        agent_conv_id = (
+            chat_service.repo.find_escalated_conversation(actor_id)
+            or chat_service.repo.find_active_conversation(actor_id)
+        )
+        if agent_conv_id:
+            chat_service.repo.save_message(
+                conversation_id=agent_conv_id,
+                role="assistant",
+                content=f"[{display_name}]: {text}",
+                metadata={"source": "manager", "sender_name": display_name, "amocrm_msgid": msgid},
+            )
+            logger.info("Manager message injected into conv=%s for actor=%s", agent_conv_id, actor_id)
+        else:
+            logger.warning("No active/escalated conversation for actor=%s, message saved but not injected", actor_id)
+    except Exception:
+        logger.warning("Failed to inject manager message into conversation", exc_info=True)
 
     return {"status": "ok"}
+
+
+@router.post("/amocrm/chat/webhook/{scope_id}")
+async def amocrm_chat_webhook(scope_id: str, request: Request):
+    """Receive manager replies from amoCRM imBox (with scope_id)."""
+    return await _process_chat_webhook(request, scope_id)
+
+
+@router.post("/amocrm/chat/webhook")
+async def amocrm_chat_webhook_no_scope(request: Request):
+    """Receive manager replies from amoCRM imBox (without scope_id)."""
+    return await _process_chat_webhook(request)
+
+
+@router.post("/amocrm/chat/connect")
+def amocrm_chat_connect():
+    """One-time: connect chat channel to amoCRM account. Returns scope_id."""
+    ok = imbox_service.client.connect_channel()
+    if ok:
+        scope_id = imbox_service.client.get_scope_id()
+        return {"status": "ok", "scope_id": scope_id}
+    raise HTTPException(500, "Failed to connect amoCRM chat channel")
+
+
+@router.get("/amocrm/chat/status")
+def amocrm_chat_status():
+    """Diagnostic: check amoCRM Chat API configuration."""
+    configured = imbox_service.client.is_configured()
+    scope_id = imbox_service.client.get_scope_id() if configured else None
+    return {
+        "configured": configured,
+        "scope_id": scope_id,
+        "channel_id": imbox_service.client._channel_id if configured else None,
+    }

@@ -688,6 +688,28 @@ class ConversationRepository:
         except (psycopg.Error, OSError):
             return None
 
+    def find_active_conversation(self, actor_id: str) -> str | None:
+        """Find most recent active (non-ended) conversation for an actor."""
+        if not self._has_db():
+            return None
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return None
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id FROM conversations
+                        WHERE actor_id = %s AND status IN ('active', 'escalated')
+                        ORDER BY updated_at DESC LIMIT 1
+                        """,
+                        (actor_id,),
+                    )
+                    row = cur.fetchone()
+                    return str(row["id"]) if row else None
+        except (psycopg.Error, OSError):
+            return None
+
     def get_undelivered_manager_messages(self, agent_conversation_id: str) -> list[dict]:
         """Get undelivered manager messages for a conversation."""
         if not self._has_db():

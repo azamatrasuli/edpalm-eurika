@@ -241,9 +241,8 @@ class AmoCRMChatClient:
         msgid = f"{prefix}_{now}_{now_ms % 1000}"
 
         if is_bot and receiver_id:
-            # Outgoing (bot→user): amoCRM v2 requires receiver = origin user (client).
-            # No explicit sender for outgoing messages — amoCRM treats them as from the channel.
-            origin_user: dict[str, Any] = {"id": receiver_id, "name": receiver_name or "Клиент"}
+            # Outgoing (bot→user): amoCRM requires sender (bot) + receiver (origin user by client_id).
+            origin_user: dict[str, Any] = {"client_id": receiver_id}
             if receiver_phone:
                 origin_user["profile"] = {"phone": receiver_phone}
 
@@ -252,6 +251,7 @@ class AmoCRMChatClient:
                 "msec_timestamp": now_ms,
                 "msgid": msgid,
                 "conversation_id": conversation_id,
+                "sender": {"id": sender_id, "name": sender_name},
                 "receiver": origin_user,
                 "message": {"type": "text", "text": text},
                 "silent": False,

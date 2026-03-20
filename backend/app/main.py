@@ -88,7 +88,8 @@ def _extract_actor_id_from_request(body_bytes: bytes, path: str) -> str | None:
             import base64
             parts = auth["portal_token"].split(".")
             if len(parts) >= 2:
-                payload = _json.loads(base64.b64decode(parts[1] + "=="))
+                padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
+                payload = _json.loads(base64.b64decode(padded))
                 uid = payload.get("user_id")
                 if uid:
                     return f"portal:{uid}"
@@ -217,5 +218,6 @@ app.include_router(renewal_router)
 app.include_router(telegram_router)
 
 # Alias: amoCRM Chat API webhook registered without /v1 prefix
-from app.api.chat import amocrm_chat_webhook as _wh  # noqa: E402
+from app.api.chat import amocrm_chat_webhook as _wh, amocrm_chat_webhook_no_scope as _wh_ns  # noqa: E402
 app.post("/api/amocrm/chat/webhook/{scope_id}", include_in_schema=False)(_wh)
+app.post("/api/amocrm/chat/webhook", include_in_schema=False)(_wh_ns)
