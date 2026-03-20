@@ -50,7 +50,7 @@ export function MessageInput({ disabled, onSend, auth, onTypingStart }) {
       setMicError('Не удалось распознать голос. Попробуйте ещё раз.')
       setVoiceMode('idle')
     }
-  }, [])
+  }, [auth])
 
   const handleVoiceCancel = useCallback((errorMessage) => {
     setVoiceMode('idle')

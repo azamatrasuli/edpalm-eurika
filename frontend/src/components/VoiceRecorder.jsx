@@ -13,6 +13,10 @@ export function VoiceRecorder({ onDone, onCancel }) {
   const rafRef = useRef(null)
   const timerRef = useRef(null)
   const stoppedRef = useRef(false)
+  const onDoneRef = useRef(onDone)
+  const onCancelRef = useRef(onCancel)
+  onDoneRef.current = onDone
+  onCancelRef.current = onCancel
 
   useEffect(() => {
     let canceled = false
@@ -91,7 +95,7 @@ export function VoiceRecorder({ onDone, onCancel }) {
           } else {
             msg = 'Не удалось подключить микрофон'
           }
-          onCancel(msg)
+          onCancelRef.current(msg)
         }
       }
     }
@@ -119,16 +123,16 @@ export function VoiceRecorder({ onDone, onCancel }) {
     const recorder = mediaRecorderRef.current
     if (!recorder || recorder.state === 'inactive') {
       cleanup()
-      onCancel()
+      onCancelRef.current()
       return
     }
     recorder.onstop = () => {
       cleanup()
       const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-      blob.size > 0 ? onDone(blob) : onCancel()
+      blob.size > 0 ? onDoneRef.current(blob) : onCancelRef.current()
     }
     recorder.stop()
-  }, [onDone, onCancel]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleCancel = useCallback(() => {
     if (stoppedRef.current) return
@@ -136,8 +140,8 @@ export function VoiceRecorder({ onDone, onCancel }) {
     const recorder = mediaRecorderRef.current
     if (recorder && recorder.state !== 'inactive') recorder.stop()
     cleanup()
-    onCancel()
-  }, [onCancel]) // eslint-disable-line react-hooks/exhaustive-deps
+    onCancelRef.current()
+  }, [])
 
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0')
   const ss = String(elapsed % 60).padStart(2, '0')
