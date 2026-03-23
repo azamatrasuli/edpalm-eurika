@@ -9,7 +9,7 @@ import { useChat } from '../hooks/useChat'
 import { useConversationList } from '../hooks/useConversationList'
 import { useOnboarding } from '../hooks/useOnboarding'
 import { useTTS } from '../hooks/useTTS'
-import { buildAuthPayload, getAgentRole } from '../lib/authContext'
+import { buildAuthPayload, getAgentRole, getConvFromURL, isManagerMode } from '../lib/authContext'
 
 const EUREKA_AVATAR = '/avatar.webp'
 
@@ -114,6 +114,8 @@ export function ChatPage() {
   const auth = useMemo(() => buildAuthPayload(), [])
   const agentRole = useMemo(() => getAgentRole(), [])
   const { actorId, actorPhone } = useMemo(() => getActorHints(auth), [auth])
+  const convFromURL = useMemo(() => getConvFromURL(), [])
+  const managerMode = useMemo(() => isManagerMode(), [])
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -128,7 +130,7 @@ export function ChatPage() {
   }, [])
 
   const onboarding = useOnboarding(auth, actorId, actorPhone)
-  const chat = useChat(auth, agentRole, onboarding.isComplete)
+  const chat = useChat(auth, agentRole, onboarding.isComplete, { initialConvId: convFromURL })
   const convList = useConversationList(auth, agentRole, { onError: showErrorToast })
   const tts = useTTS(auth, { onError: showErrorToast })
 
@@ -253,8 +255,8 @@ export function ChatPage() {
 
   return (
     <main className="w-full h-dvh flex overflow-hidden">
-      {/* Conversation Sidebar */}
-      <ConversationSidebar
+      {/* Conversation Sidebar — hidden in manager mode */}
+      {!managerMode && <ConversationSidebar
         conversations={convList.conversations}
         activeId={convList.activeId}
         loading={convList.loading}
@@ -278,7 +280,7 @@ export function ChatPage() {
         archivedLoading={convList.archivedLoading}
         onLoadArchived={convList.loadArchived}
         onUnarchive={convList.unarchiveFromList}
-      />
+      />}
 
       {/* Chat area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -300,9 +302,24 @@ export function ChatPage() {
             <div className="flex items-center gap-2">
               <span className="text-base font-semibold leading-tight text-fg tracking-tight">Эврика</span>
               <span className="w-1.5 h-1.5 rounded-full bg-status shrink-0 animate-[status-pulse_2s_infinite_ease-in-out]" />
+              {managerMode && <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">Менеджер</span>}
             </div>
-            <span className="text-[13px] text-fg-tertiary leading-tight">{headerSubtitle}</span>
+            <span className="text-[13px] text-fg-tertiary leading-tight">{managerMode ? 'Просмотр диалога клиента' : headerSubtitle}</span>
           </div>
+          {managerMode && convFromURL && (
+            <button
+              onClick={() => {
+                fetch(`http://127.0.0.1:8009/api/v1/manager/handback/${convFromURL}?key=${new URLSearchParams(window.location.hash.split('?')[1] || '').get('manager_key')}`)
+                  .then(() => {
+                    chat.addSystemMessage('Диалог возвращён Эврике.')
+                  })
+                  .catch(() => {})
+              }}
+              className="ml-auto px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors shrink-0"
+            >
+              🤖 Вернуть ИИ
+            </button>
+          )}
         </header>
 
         <EscalationBanner active={chat.escalated} reason={chat.escalationReason} />
@@ -317,6 +334,7 @@ export function ChatPage() {
           onTTSPlay={tts.play}
           ttsPlayingId={tts.playingId}
           ttsState={tts.ttsState}
+          isManagerView={managerMode}
         />
 
         {chat.error && (
@@ -326,7 +344,7 @@ export function ChatPage() {
         )}
 
         <div className="shrink-0 px-5 pt-3 pb-[calc(16px+env(safe-area-inset-bottom,0px))] bg-input-area backdrop-blur-[16px] border-t border-input-area-border max-sm:px-3 max-sm:pt-2.5">
-          <MessageInput disabled={chat.typing || chat.escalated || chat.loading} onSend={handleSend} auth={auth} onTypingStart={chat.clearSuggestions} />
+          <MessageInput disabled={chat.typing || chat.escalated || chat.loading} onSend={handleSend} auth={auth} onTypingStart={chat.clearSuggestions} isManagerView={managerMode} />
         </div>
       </div>
 

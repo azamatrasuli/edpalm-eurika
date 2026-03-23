@@ -106,6 +106,34 @@ def resolve_escalation(
     return {"status": "resolved", "conversation_id": conversation_id}
 
 
+@router.get("/conversations/{conversation_id}/messages")
+def dashboard_conversation_messages(
+    conversation_id: str,
+    _key: str = Depends(_verify_dashboard_key),
+):
+    """Read-only view of conversation messages for supervisor."""
+    from app.db.repository import ConversationRepository
+
+    repo = ConversationRepository()
+    messages = repo.get_messages(conversation_id, limit=200)
+    conv_status = repo.get_conversation_status(conversation_id)
+    return {
+        "conversation_id": conversation_id,
+        "status": conv_status.get("status", "active") if conv_status else "active",
+        "manager_is_active": conv_status.get("manager_is_active", False) if conv_status else False,
+        "escalated_reason": conv_status.get("escalated_reason") if conv_status else None,
+        "messages": [
+            {
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "metadata": m.metadata or {},
+            }
+            for m in messages
+        ],
+    }
+
+
 @router.get("/unanswered", response_model=list[UnansweredQuestion])
 def dashboard_unanswered(
     date_from: date | None = Query(default=None),

@@ -13,6 +13,7 @@ from app.db.repository import ConversationRepository
 from app.integrations.amocrm import AmoCRMClient
 from app.integrations.dms import get_dms_service, _normalize_phone, _format_phone_dms
 from app.rag.search import search_knowledge_base
+from app.services.funnel import FunnelService
 
 logger = logging.getLogger("agent.tools")
 
@@ -20,6 +21,28 @@ logger = logging.getLogger("agent.tools")
 # ---------------------------------------------------------------------------
 # Tool definitions (OpenAI JSON Schema format)
 # ---------------------------------------------------------------------------
+
+_CHECK_CLIENT_HISTORY_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "check_client_history",
+        "description": (
+            "Проверить историю клиента в CRM и системе школы. "
+            "Вызывай В НАЧАЛЕ КАЖДОГО НОВОГО диалога, ПЕРЕД квалификацией, "
+            "если известен телефон или telegram_id клиента. "
+            "Возвращает тип клиента (новый/продлённый/реанимация), "
+            "активных учеников и историю сделок."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "phone": {"type": "string", "description": "Номер телефона клиента (если известен)"},
+                "telegram_id": {"type": "string", "description": "Telegram ID клиента (если известен)"},
+            },
+            "required": [],
+        },
+    },
+}
 
 SALES_TOOL_DEFINITIONS: list[dict] = [
     {
@@ -45,6 +68,7 @@ SALES_TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    _CHECK_CLIENT_HISTORY_TOOL,
     {
         "type": "function",
         "function": {
@@ -249,6 +273,7 @@ SALES_TOOL_DEFINITIONS: list[dict] = [
 TOOL_DEFINITIONS = SALES_TOOL_DEFINITIONS
 
 SUPPORT_TOOL_DEFINITIONS: list[dict] = [
+    _CHECK_CLIENT_HISTORY_TOOL,
     {
         "type": "function",
         "function": {
@@ -333,6 +358,7 @@ SUPPORT_TOOL_DEFINITIONS: list[dict] = [
 
 
 TEACHER_TOOL_DEFINITIONS: list[dict] = [
+    _CHECK_CLIENT_HISTORY_TOOL,
     {
         "type": "function",
         "function": {
@@ -436,6 +462,7 @@ class ToolExecutor:
         self.agent_role = agent_role
         self.repo = repo or ConversationRepository()
         self.events = EventTracker()
+        self.funnel = FunnelService(repo=self.repo, crm=self.crm)
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
         logger.info("Executing tool: %s args=%s", tool_name, arguments)
@@ -466,6 +493,12 @@ class ToolExecutor:
     # ---- tool implementations ---------------------------------------------
 
     def _tool_search_knowledge_base(self, query: str) -> ToolResult:
+        # Auto-advance funnel to "info_gathering" on first KB search in sales
+        if self.agent_role == "sales" and self.conversation_id:
+            current = self.funnel.get_current_stage(self.conversation_id)
+            if current == "new":
+                self.funnel.advance_stage(self.conversation_id, None, "info_gathering", force=True)
+
         chunks = search_knowledge_base(query, namespace=self.agent_role)
         if not chunks:
             self.events.track_rag_miss(
@@ -491,6 +524,139 @@ class ToolExecutor:
                 "на основе найденного. НЕ эскалируй только из-за низкой релевантности.\n\n" + result
             )
         return ToolResult(name="search_knowledge_base", result=result)
+
+    def _tool_check_client_history(
+        self, phone: str | None = None, telegram_id: str | None = None,
+    ) -> ToolResult:
+        """Combined CRM + DMS lookup to classify client type."""
+        # 1. Find contact in amoCRM
+        contact = None
+        if telegram_id:
+            contact = self.crm.find_contact_by_telegram_id(telegram_id)
+        if not contact and phone:
+            contact = self.crm.find_contact_by_phone(phone)
+
+        if not contact:
+            return ToolResult(
+                name="check_client_history",
+                result=json.dumps({
+                    "client_type": "new",
+                    "contact": None,
+                    "active_students": [],
+                    "deal_history": [],
+                    "message": "Клиент не найден в системе — это новый клиент.",
+                }, ensure_ascii=False),
+            )
+
+        # 2. Get all deals for contact
+        all_leads = self.crm.find_leads_by_contact(contact.id)
+        deal_history = [
+            {
+                "lead_id": l.id,
+                "name": l.name,
+                "product": l.product_name,
+                "amount": l.amount,
+                "status_id": l.status_id,
+                "pipeline_id": l.pipeline_id,
+            }
+            for l in all_leads
+        ]
+
+        # 3. Check DMS for active students
+        active_students = []
+        resolved_phone = phone or contact.phone
+        if resolved_phone:
+            dms_result = self.dms.search_contact_by_phone(resolved_phone)
+            if dms_result:
+                active_students = [
+                    {
+                        "fio": s.fio,
+                        "grade": s.grade,
+                        "product": s.product_name,
+                        "state": s.state,
+                        "school": s.enrollment_school,
+                    }
+                    for s in dms_result.students
+                ]
+
+                # Auto-save profile if not exists
+                if self.actor_id:
+                    try:
+                        children = [{"fio": s.fio, "grade": s.grade} for s in dms_result.students]
+                        full_name = (
+                            f"{dms_result.contact.surname} {dms_result.contact.name} "
+                            f"{dms_result.contact.patronymic or ''}"
+                        ).strip()
+                        first_grade = dms_result.students[0].grade if dms_result.students else None
+                        dms_data = {
+                            "contact_id": dms_result.contact.contact_id,
+                            "students": [
+                                {
+                                    "student_id": s.student_id,
+                                    "fio": s.fio,
+                                    "grade": s.grade,
+                                    "product_name": s.product_name,
+                                    "moodle_id": s.moodle_id,
+                                }
+                                for s in dms_result.students
+                            ],
+                        }
+                        self.repo.save_user_profile(
+                            actor_id=self.actor_id,
+                            client_type="existing",
+                            user_role="parent",
+                            phone=_normalize_phone(resolved_phone),
+                            phone_raw=resolved_phone,
+                            fio=full_name,
+                            grade=first_grade,
+                            children=children,
+                            dms_verified=True,
+                            dms_contact_id=dms_result.contact.contact_id,
+                            dms_data=dms_data,
+                            verification_status="found",
+                        )
+                    except Exception:
+                        logger.warning("check_client_history: profile save failed", exc_info=True)
+
+        # 4. Classify client type
+        has_active_students = any(
+            s.get("state") in ("active", None) for s in active_students
+        )
+        has_won = any(l.status_id == 142 for l in all_leads)
+        has_lost = any(l.status_id == 143 for l in all_leads)
+
+        if has_active_students:
+            client_type = "renewal"
+            message = "Действующий клиент — ученик(и) активны в системе."
+        elif has_won:
+            client_type = "reanimation"
+            message = "Бывший клиент — были оплаченные сделки, но нет активных учеников."
+        elif has_lost:
+            client_type = "reanimation"
+            message = "Клиент ранее отказался — возвращается."
+        else:
+            client_type = "new"
+            message = "Контакт есть в CRM, но без истории покупок — новый клиент."
+
+        # Save contact mapping
+        if self.actor_id:
+            self.repo.save_contact_mapping(self.actor_id, contact.id, contact.name)
+
+        return ToolResult(
+            name="check_client_history",
+            result=json.dumps({
+                "client_type": client_type,
+                "contact": {
+                    "contact_id": contact.id,
+                    "name": contact.name,
+                    "phone": contact.phone,
+                    "telegram_id": contact.telegram_id,
+                },
+                "active_students": active_students,
+                "deal_history": deal_history,
+                "message": message,
+            }, ensure_ascii=False),
+        )
 
     def _tool_get_amocrm_contact(
         self, phone: str | None = None, telegram_id: str | None = None,
@@ -588,6 +754,16 @@ class ToolExecutor:
         product: str | None = None,
         amount: int | None = None,
     ) -> ToolResult:
+        # Guard: archive stage requires manager (РОП) approval
+        if status_id is not None and self.funnel.is_archive_stage(status_id):
+            return ToolResult(
+                name="update_deal_stage",
+                result=json.dumps({
+                    "success": False,
+                    "error": "Перемещение в архив возможно только с одобрения РОП (руководителя отдела продаж).",
+                }, ensure_ascii=False),
+            )
+
         lead = self.crm.update_lead(
             lead_id=lead_id, status_id=status_id, product=product, amount=amount,
         )
@@ -744,6 +920,15 @@ class ToolExecutor:
             # Telegram notification to manager
             self._notify_manager_task(client_name, country, children_details, proposal_summary, phone)
 
+            # Auto-advance funnel: info_gathering → proposal → manager_review
+            if self.conversation_id and lead_id:
+                self.funnel.advance_stage(
+                    self.conversation_id, lead_id, "proposal", force=True,
+                )
+                self.funnel.advance_stage(
+                    self.conversation_id, lead_id, "manager_review", force=True,
+                )
+
             return ToolResult(
                 name="create_manager_task",
                 result=json.dumps({
@@ -768,7 +953,7 @@ class ToolExecutor:
     def _notify_manager_task(
         self, name: str, country: str, details: str, proposal: str, phone: str | None,
     ) -> None:
-        """Send Telegram notification about new qualified lead."""
+        """Send Telegram notification about new qualified lead with action buttons."""
         import httpx
 
         settings = get_settings()
@@ -789,13 +974,42 @@ class ToolExecutor:
         if phone:
             text += f"<b>Телефон:</b> {_esc(phone)}\n"
         text += f"\n<b>Предложение ИИ:</b>\n{_esc(proposal[:500])}"
+        text += f"\n\n<b>Статус:</b> ⏳ Ожидает согласования"
+
+        # Build inline keyboard with links
+        buttons = []
+
+        # CRM link — get lead_id from deal mapping
+        crm_lead_id = None
         if self.conversation_id:
-            text += f"\n\n<b>ID диалога:</b> <code>{_esc(self.conversation_id)}</code>"
+            deal = self.repo.get_deal_mapping(self.conversation_id)
+            if deal:
+                crm_lead_id = deal.get("amocrm_lead_id")
+        if crm_lead_id:
+            crm_url = f"https://{settings.amocrm_subdomain}.amocrm.ru/leads/detail/{crm_lead_id}"
+            buttons.append({"text": "📋 Открыть в CRM", "url": crm_url})
+
+        # Chat link — manager can see conversation in frontend
+        if self.conversation_id:
+            chat_url = f"{settings.frontend_url}/#/?conv={self.conversation_id}&manager_key={settings.dashboard_api_key}&role=sales"
+            buttons.append({"text": "💬 Открыть диалог", "url": chat_url})
+            approve_url = f"{settings.backend_url}/api/v1/manager/approve/{self.conversation_id}?key={settings.dashboard_api_key}"
+            buttons.append({"text": "✅ Согласовать", "url": approve_url})
+
+        payload: dict = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+        }
+        if buttons:
+            payload["reply_markup"] = json.dumps({
+                "inline_keyboard": [buttons],
+            })
 
         try:
             httpx.post(
                 f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+                json=payload,
                 timeout=10,
             )
         except Exception:
@@ -813,16 +1027,43 @@ class ToolExecutor:
         lead_id: int | None = None,
         notes: str | None = None,
     ) -> ToolResult:
-        """Register client decline with reasons."""
+        """Register client decline with reasons. Moves to 'Отказ' stage, NOT archive."""
         try:
-            # Update deal status to "lost" if lead exists
+            settings = get_settings()
+            # Use "declined" stage (NOT archive/143). Archive requires manager approval.
+            declined_status = settings.amocrm_stage_declined
             if lead_id:
-                self.crm.update_lead(lead_id, status_id=143)  # 143 = closed-lost
+                if declined_status:
+                    self.crm.update_lead(lead_id, status_id=declined_status)
+                else:
+                    # Fallback: use closed-lost if declined stage not configured
+                    self.crm.update_lead(lead_id, status_id=143)
                 reason_text = ", ".join(decline_reasons)
                 note = f"❌ Отказ клиента\nПричины: {reason_text}"
                 if notes:
                     note += f"\nКомментарий: {notes}"
                 self.crm.add_note(lead_id, note)
+
+            # Save structured decline reasons
+            if self.conversation_id:
+                self.repo.save_decline_reasons(self.conversation_id, decline_reasons, notes)
+
+            # Advance funnel to "declined"
+            if self.conversation_id:
+                self.funnel.advance_stage(
+                    self.conversation_id, lead_id, "declined", force=True,
+                )
+
+            # Move to reanimation pipeline
+            contact_id = None
+            if self.actor_id:
+                contact_id = self.repo.get_contact_mapping(self.actor_id)
+            if contact_id:
+                reanim_lead = self.funnel.move_to_reanimation(
+                    contact_id, decline_reasons, original_lead_id=lead_id,
+                )
+                if reanim_lead:
+                    logger.info("Client moved to reanimation: lead=%d", reanim_lead)
 
             # Track decline event
             self.events.track(
@@ -838,7 +1079,7 @@ class ToolExecutor:
                 result=json.dumps({
                     "registered": True,
                     "reasons": decline_reasons,
-                    "message": "Отказ зафиксирован. Спасибо за обратную связь.",
+                    "message": "Отказ зафиксирован. Клиент перемещён в воронку реанимации.",
                 }, ensure_ascii=False),
             )
         except Exception as e:
@@ -934,6 +1175,36 @@ class ToolExecutor:
         student_name: str | None = None,
     ) -> ToolResult:
         """Generate a payment link via DMS: product lookup → order → link."""
+        # Manager gate: payment only after manager approval
+        if self.conversation_id:
+            deal = self.repo.get_deal_mapping(self.conversation_id)
+            if deal and deal.get("amocrm_lead_id"):
+                # Deal exists — check if manager approved
+                if not self.funnel.is_manager_approved(self.conversation_id):
+                    return ToolResult(
+                        name="generate_payment_link",
+                        result=json.dumps({
+                            "success": False,
+                            "error": (
+                                "Оплата невозможна без согласования менеджера. "
+                                "Сделка находится на этапе «Согласование с менеджером». "
+                                "Менеджер свяжется с клиентом для финального согласования."
+                            ),
+                        }, ensure_ascii=False),
+                    )
+            else:
+                # No deal mapping — need to create manager task first
+                return ToolResult(
+                    name="generate_payment_link",
+                    result=json.dumps({
+                        "success": False,
+                        "error": (
+                            "Сначала нужно создать задачу менеджеру через create_manager_task. "
+                            "Оплата возможна только после согласования с менеджером."
+                        ),
+                    }, ensure_ascii=False),
+                )
+
         from app.services.payment import PaymentService
 
         payment_svc = PaymentService(dms=self.dms, repo=self.repo, crm=self.crm)

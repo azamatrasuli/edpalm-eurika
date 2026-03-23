@@ -52,3 +52,7 @@ export function fetchEscalations(params) {
 export function fetchUnanswered(params) {
   return dashboardFetch('unanswered', params)
 }
+
+export function fetchConversationMessages(conversationId) {
+  return dashboardFetch(`conversations/${conversationId}/messages`)
+}

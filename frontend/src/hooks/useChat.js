@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchMessages, startConversation, streamChat } from '../api/client'
+import { fetchMessages, pollMessages, startConversation, streamChat } from '../api/client'
+import { isManagerMode } from '../lib/authContext'
 
 function getStorageKey(agentRole) {
   return `eurika_conversation_id_${agentRole}`
 }
 
-export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
+export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { initialConvId = null } = {}) {
   const [messages, setMessages] = useState([])
   const [conversationId, setConversationId] = useState('')
   const [typing, setTyping] = useState(false)
@@ -117,9 +118,9 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
     if (!auth || initRef.current || !onboardingComplete) return
     initRef.current = true
 
-    const storageKey = getStorageKey(agentRole)
-    const savedConvId = sessionStorage.getItem(storageKey)
-    loadConversation(savedConvId)
+    // Priority: URL param > sessionStorage
+    const convId = initialConvId || sessionStorage.getItem(getStorageKey(agentRole))
+    loadConversation(convId)
   }, [auth, agentRole, onboardingComplete, loadConversation])
 
   // Keep conversationIdRef in sync
@@ -136,6 +137,77 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
       }
     }
   }, [])
+
+  // --- SSE Live Channel: real-time message delivery ---
+  const seenMsgIdsRef = useRef(new Set())
+
+  useEffect(() => {
+    if (!conversationId) return
+
+    // Build auth query params for SSE endpoint
+    const params = new URLSearchParams()
+    if (auth.manager_key) params.set('key', auth.manager_key)
+    if (auth.guest_id) params.set('guest_id', auth.guest_id)
+
+    const API_BASE = import.meta.env.VITE_API_BASE_URL
+      || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://127.0.0.1:8009'
+        : 'https://edpalm-eurika-ws1a.onrender.com')
+
+    const url = `${API_BASE}/api/v1/chat/listen/${conversationId}?${params.toString()}`
+    const evtSource = new EventSource(url)
+
+    evtSource.addEventListener('new_message', (e) => {
+      try {
+        const msg = JSON.parse(e.data)
+        // Dedup: skip messages we already have
+        if (seenMsgIdsRef.current.has(msg.id)) return
+        seenMsgIdsRef.current.add(msg.id)
+
+        const isManager = msg.metadata?.source === 'manager'
+        const isSystem = msg.metadata?.source === 'system'
+
+        setMessages((prev) => {
+          // Also check if content already exists (sent by us)
+          if (prev.some((m) => m.dbId === msg.id)) return prev
+          // Skip if this is our own message just sent (content match)
+          const managerMode = isManagerMode()
+          if (managerMode && isManager && prev.some((m) => m.content === msg.content && m.type === 'manager')) return prev
+          if (!managerMode && msg.role === 'user' && prev.some((m) => m.content === msg.content && m.role === 'user')) return prev
+
+          return [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              dbId: msg.id,
+              role: msg.role,
+              content: msg.content,
+              type: isManager ? 'manager' : isSystem ? 'system' : undefined,
+              senderName: msg.metadata?.sender_name || (isManager ? 'Менеджер' : undefined),
+              fromHistory: true,
+            },
+          ]
+        })
+      } catch {
+        // ignore parse errors
+      }
+    })
+
+    evtSource.addEventListener('status', (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        if (data.manager_active !== undefined) {
+          // Could update UI state here
+        }
+      } catch { /* ignore */ }
+    })
+
+    evtSource.onerror = () => {
+      // SSE reconnects automatically
+    }
+
+    return () => evtSource.close()
+  }, [conversationId, auth])
 
   // --- Switch to an existing conversation ---
   const switchConversation = useCallback(async (convId) => {
@@ -155,11 +227,25 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
 
     setSuggestions([])
 
-    const userMsg = { id: crypto.randomUUID(), role: 'user', content: text }
+    // Manager mode: show as manager bubble (blue, left), not as user (green, right)
+    const managerMode = isManagerMode()
     const assistantId = crypto.randomUUID()
 
-    setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }])
-    setTyping(true)
+    if (managerMode) {
+      // Manager message: show immediately as manager type, no empty assistant placeholder
+      const mgrMsg = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: text,
+        type: 'manager',
+        senderName: 'Менеджер',
+      }
+      setMessages((prev) => [...prev, mgrMsg])
+    } else {
+      const userMsg = { id: crypto.randomUUID(), role: 'user', content: text }
+      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }])
+    }
+    setTyping(!managerMode) // manager doesn't wait for LLM
     setToolStatus('')
     setError('')
 
@@ -248,9 +334,19 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
             setSuggestions(payload.chips)
           }
 
+          // Manager is active — client message went to manager, not AI
+          if (event === 'status' && payload.manager_active) {
+            setTyping(false)
+            setToolStatus('')
+            // Remove empty assistant placeholder
+            setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.content))
+          }
+
           if (event === 'done') {
             setTyping(false)
             setToolStatus('')
+            // Remove empty assistant placeholder (manager mode or no-response)
+            setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.content))
             // Update sidebar metadata reactively
             if (bumpCallbackRef.current) {
               bumpCallbackRef.current(conversationIdRef.current, text)
@@ -305,6 +401,13 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
     bumpCallbackRef.current = cb
   }, [])
 
+  const addSystemMessage = useCallback((text) => {
+    setMessages((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), role: 'assistant', content: text, type: 'system' },
+    ])
+  }, [])
+
   return {
     messages,
     conversationId,
@@ -322,5 +425,6 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true) {
     clearSuggestions,
     onTitleUpdate,
     onBumpConversation,
+    addSystemMessage,
   }
 }

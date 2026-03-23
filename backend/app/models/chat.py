@@ -12,6 +12,7 @@ class Channel(str, Enum):
     telegram = "telegram"
     external = "external"
     guest = "guest"
+    manager = "manager"
 
 
 class AgentRole(str, Enum):
@@ -20,11 +21,19 @@ class AgentRole(str, Enum):
     teacher = "teacher"
 
 
+class ClientType(str, Enum):
+    new = "new"                  # Новый — первый раз
+    renewal = "renewal"          # Продлённый — продление на следующий год/класс
+    reanimation = "reanimation"  # Реанимация — возврат после отказа
+    unknown = "unknown"          # Не определён
+
+
 class AuthPayload(BaseModel):
     portal_token: str | None = None
     telegram_init_data: str | None = None
     external_token: str | None = None
     guest_id: str | None = None
+    manager_key: str | None = None
 
 
 class ActorContext(BaseModel):

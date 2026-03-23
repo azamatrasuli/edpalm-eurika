@@ -42,7 +42,7 @@ function TTSButton({ messageId, ttsPlayingId, ttsState, onPlay }) {
   )
 }
 
-export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading, onButtonClick, onFormSubmit, onTTSPlay, ttsPlayingId, ttsState }) {
+export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading, onButtonClick, onFormSubmit, onTTSPlay, ttsPlayingId, ttsState, isManagerView = false }) {
   const containerRef = useRef(null)
   const bottomRef = useRef(null)
   const userScrolledUp = useRef(false)
@@ -86,23 +86,46 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
               } ${
                 isPayment ? 'payment-enter' : ''
               } ${
-                message.role === 'user' ? 'justify-end' : 'justify-start'
+                isManagerView ? 'justify-start' : (message.role === 'user' ? 'justify-end' : 'justify-start')
               }`}
             >
-              {message.role === 'assistant' && avatarProps && (
+              {message.role === 'assistant' && message.type !== 'manager' && avatarProps && (
                 <img
                   className="w-7 h-7 rounded-full object-cover shrink-0 self-end bg-surface-alt ring-1 ring-border-subtle"
                   alt=""
                   {...avatarProps}
                 />
               )}
+              {message.type === 'manager' && (
+                <div className="w-7 h-7 rounded-full shrink-0 self-end bg-blue-600 flex items-center justify-center text-white text-xs font-bold ring-1 ring-blue-400/30">
+                  М
+                </div>
+              )}
+              {/* Client message label in manager view */}
+              {isManagerView && message.role === 'user' && (
+                <div className="w-7 h-7 rounded-full shrink-0 self-end bg-emerald-600 flex items-center justify-center text-white text-xs font-bold ring-1 ring-emerald-400/30">
+                  К
+                </div>
+              )}
               <div
                 className={`max-w-[82%] sm:max-w-[70%] px-4 py-3 text-[15px] leading-normal shadow-xs break-words ${
-                  message.role === 'user'
+                  message.role === 'user' && !isManagerView
                     ? 'bg-gradient-to-br from-brand to-brand-hover text-on-card-user whitespace-pre-wrap rounded-[20px] rounded-br-[6px]'
-                    : 'bg-card rounded-[20px] rounded-tl-[6px] prose-chat'
+                    : message.role === 'user' && isManagerView
+                      ? 'bg-emerald-900/40 border border-emerald-500/30 rounded-[20px] rounded-tl-[6px] prose-chat'
+                      : message.type === 'manager'
+                        ? 'bg-blue-900/40 border border-blue-500/30 rounded-[20px] rounded-tl-[6px] prose-chat'
+                        : 'bg-card rounded-[20px] rounded-tl-[6px] prose-chat'
                 }`}
               >
+                {isManagerView && message.role === 'user' && (
+                  <div className="text-[11px] text-emerald-400 font-medium mb-1">Клиент</div>
+                )}
+                {message.type === 'manager' && (
+                  <div className="text-[11px] text-blue-400 font-medium mb-1">
+                    {message.senderName || 'Менеджер'}
+                  </div>
+                )}
                 {isSpecial ? (
                   <OnboardingMessage
                     message={message}

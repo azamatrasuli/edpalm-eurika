@@ -10,7 +10,7 @@ from app.agent.prompt import PROMPT_VERSION
 from app.config import get_settings
 from app.db.repository import ConversationRepository, StoredConversation
 from app.integrations.amocrm import AmoCRMClient
-from app.models.chat import ActorContext, AgentRole, Channel, ChatMessage
+from app.models.chat import ActorContext, AgentRole, Channel, ChatMessage, ClientType
 from app.services.llm import LLMService
 from app.services.memory import MemoryService
 from app.services.onboarding import OnboardingService
@@ -76,11 +76,12 @@ class ChatService:
         threading.Thread(target=_run, daemon=True).start()
 
     def generate_greeting(self, actor: ActorContext, conversation_id: str) -> str:
-        """Generate a personalized greeting based on channel, time, and profile."""
+        """Generate a personalized greeting based on channel, time, client type, and profile."""
         import datetime as _dt
 
         name = actor.display_name.strip() if actor.display_name else None
         is_support = actor.agent_role == AgentRole.support
+        is_teacher = actor.agent_role == AgentRole.teacher
 
         # Time of day (Moscow UTC+3)
         moscow_hour = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=3)).hour
@@ -94,6 +95,7 @@ class ChatService:
         # Check saved profile for richer context
         profile = self.onboarding.check_profile(actor.actor_id)
         child_snippet = ""
+        product_snippet = ""
         if profile and profile.dms_verified and profile.children:
             first_child = profile.children[0]
             fio_parts = (first_child.get("fio") or "").split()
@@ -101,10 +103,31 @@ class ChatService:
             child_grade = first_child.get("grade")
             if child_name and child_grade:
                 child_snippet = f" Вижу, {child_name} в {child_grade} классе."
+            # Extract product for renewal context
+            dms_data = profile.dms_data or {}
+            students = dms_data.get("students", [])
+            if students and students[0].get("product_name"):
+                product_snippet = f" Текущая программа: {students[0]['product_name']}."
 
-        is_teacher = actor.agent_role == AgentRole.teacher
+        # Determine client type from conversation metadata or CRM
+        client_type = ClientType.unknown
+        try:
+            crm_ctx = self.resolve_crm_context(actor)
+            client_type = self.classify_client_type(actor, crm_ctx, conversation_id)
+        except Exception:
+            logger.info("Could not classify client for greeting", exc_info=True)
 
-        # --- Build greeting by channel × role ---
+        # Set initial funnel stage for sales conversations
+        if actor.agent_role == AgentRole.sales and conversation_id:
+            try:
+                from app.services.funnel import FunnelService
+                funnel = FunnelService(repo=self.repo, crm=self.crm)
+                funnel.advance_stage(conversation_id, None, "new", force=True)
+            except Exception:
+                logger.info("Could not set initial funnel stage", exc_info=True)
+
+        # --- Build greeting by client_type × role ---
+
         if is_teacher:
             if name and child_snippet:
                 greeting = f"{hi}, {name}!{child_snippet} Готова помочь с учёбой — спрашивай!"
@@ -118,6 +141,7 @@ class ChatService:
                     f"{hi}! Я Эврика — твой виртуальный учитель в EdPalm. "
                     "Помогу с любым предметом. Что будем разбирать?"
                 )
+
         elif is_support:
             if name and child_snippet:
                 greeting = f"{hi}, {name}!{child_snippet} Чем могу помочь?"
@@ -131,38 +155,48 @@ class ChatService:
                     f"{hi}! Я Эврика — помогу с вопросами "
                     "по платформе, документам и оплате. Чем могу помочь?"
                 )
-        elif actor.channel == Channel.telegram:
+
+        elif client_type == ClientType.renewal:
+            # Продлённый клиент — тёплое возвращение
             if name:
                 greeting = (
-                    f"Привет, {name}! Я Эврика из EdPalm — "
-                    "помогу разобраться в программах обучения. "
-                    "О чём хотите узнать?"
+                    f"{hi}, {name}! Рада видеть вас снова."
+                    f"{child_snippet}{product_snippet} "
+                    "Чем могу помочь?"
                 )
             else:
                 greeting = (
-                    "Привет! Я Эврика из EdPalm — "
-                    "помогу разобраться в программах обучения. "
-                    "О чём хотите узнать?"
+                    f"{hi}! Рада видеть вас снова."
+                    f"{child_snippet} "
+                    "Как к вам обращаться?"
                 )
-        elif actor.channel == Channel.external:
-            greeting = (
-                f"{hi}! Я Эврика из EdPalm. "
-                "Помогу подобрать программу и отвечу на вопросы. "
-                "Что вас интересует?"
-            )
+
+        elif client_type == ClientType.reanimation:
+            # Реанимация — возврат после отказа
+            if name:
+                greeting = (
+                    f"{hi}, {name}! Рада, что вернулись. "
+                    "Давайте посмотрим, что можем предложить. "
+                    "Что вас интересует?"
+                )
+            else:
+                greeting = (
+                    f"{hi}! Рада, что вы к нам вернулись. "
+                    "Я Эврика из EdPalm. Как к вам обращаться?"
+                )
+
         else:
-            # Portal
-            if name and child_snippet:
-                greeting = f"{hi}, {name}!{child_snippet} Чем могу помочь?"
-            elif name:
+            # Новый клиент — знакомство в первую очередь
+            if name:
                 greeting = (
-                    f"{hi}, {name}! Я Эврика — помогу подобрать "
-                    "программу обучения. Что вас интересует?"
+                    f"Привет, {name}! Я Эврика из EdPalm 😊 "
+                    "Помогу подобрать программу обучения. "
+                    "Что вас интересует?"
                 )
             else:
                 greeting = (
-                    f"{hi}! Я Эврика — помогу подобрать "
-                    "программу обучения. Что вас интересует?"
+                    f"Привет! Я Эврика из EdPalm 😊 "
+                    "Как к вам обращаться?"
                 )
 
         self.save_assistant_message(conversation_id, greeting, usage_tokens=None)
@@ -225,6 +259,72 @@ class ChatService:
                 "status_id": lead.status_id,
             } if lead else None,
         }
+
+    def classify_client_type(
+        self,
+        actor: ActorContext,
+        crm_context: dict | None,
+        conversation_id: str | None = None,
+    ) -> ClientType:
+        """Classify client as new/renewal/reanimation based on CRM + DMS data.
+
+        Called during resolve_crm_context to determine the client journey path.
+        """
+        if not crm_context or not crm_context.get("contact_id"):
+            return ClientType.new
+
+        contact_id = crm_context["contact_id"]
+
+        # Check DMS profile for active students
+        profile = self.onboarding.check_profile(actor.actor_id)
+        has_active_students = False
+        if profile and profile.get("dms_verified"):
+            dms_data = profile.get("dms_data") or {}
+            students = dms_data.get("students", [])
+            has_active_students = any(
+                s.get("state") in ("active", None) for s in students
+            )
+
+        # If active students in DMS → renewal (client already studying)
+        if has_active_students:
+            client_type = ClientType.renewal
+        else:
+            # Check deal history in amoCRM
+            try:
+                all_leads = self.crm.find_leads_by_contact(contact_id)
+            except Exception:
+                all_leads = []
+
+            has_won = any(l.status_id == 142 for l in all_leads)
+            has_lost = any(l.status_id == 143 for l in all_leads)
+            has_active = crm_context.get("active_deal") is not None
+
+            if has_active:
+                # Active deal exists but no DMS students → could be mid-process
+                client_type = ClientType.new
+            elif has_won:
+                # Was a client before (won deal) but no active students → reanimation
+                client_type = ClientType.reanimation
+            elif has_lost:
+                # Had a deal that was lost → reanimation
+                client_type = ClientType.reanimation
+            else:
+                client_type = ClientType.new
+
+        # Persist classification
+        if conversation_id:
+            try:
+                meta = self.repo.get_conversation_metadata(conversation_id) or {}
+                meta["client_type"] = client_type.value
+                self.repo.update_conversation_metadata(conversation_id, meta)
+            except Exception:
+                logger.info("Failed to persist client_type to conversation metadata", exc_info=True)
+
+        logger.info(
+            "Client classified: actor=%s type=%s contact_id=%s",
+            actor.actor_id, client_type.value, contact_id,
+        )
+        return client_type
 
     def save_user_message(self, conversation_id: str, text: str) -> None:
         self.repo.save_message(
@@ -352,10 +452,26 @@ class ChatService:
         # Load onboarding profile context for LLM
         profile_context = self.onboarding.get_profile_context_for_llm(actor.actor_id)
 
-        # Check for renewal scenario context
+        # Inject client_type and scenario context from conversation metadata
         if conversation_id:
-            conv_meta = self.repo.get_conversation_metadata(conversation_id)
-            if conv_meta and conv_meta.get("scenario_type") == "renewal":
+            conv_meta = self.repo.get_conversation_metadata(conversation_id) or {}
+
+            # Client type classification (computed at greeting or by check_client_history)
+            client_type = conv_meta.get("client_type")
+            if client_type:
+                type_labels = {
+                    "new": "Новый клиент — первое обращение. Полная квалификация.",
+                    "renewal": "Продлённый клиент — уже учится. Пропусти квалификацию, предложи продление.",
+                    "reanimation": "Реанимация — ранее отказался, вернулся. Выясни что изменилось.",
+                }
+                type_ctx = (
+                    f"# ТИП КЛИЕНТА: {client_type.upper()}\n"
+                    f"{type_labels.get(client_type, '')}"
+                )
+                profile_context = (profile_context + "\n\n" + type_ctx) if profile_context else type_ctx
+
+            # Renewal scenario context
+            if conv_meta.get("scenario_type") == "renewal":
                 renewal_ctx = (
                     f"Сценарий: пролонгация\n"
                     f"Ученик: {conv_meta.get('student_name', '—')}\n"

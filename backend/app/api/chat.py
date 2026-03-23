@@ -33,6 +33,7 @@ from app.config import get_settings
 from app.models.chat import (
     AgentRole,
     AuthPayload,
+    Channel,
     ChatStreamRequest,
     ConversationMessagesResponse,
     StartConversationRequest,
@@ -128,14 +129,37 @@ def _notify_manager(
         f"<b>Причина:</b> {esc(reason)}"
         f"{profile_snippet}"
         f"{crm_link}\n\n"
-        f"<b>Последние сообщения:</b>\n{conversation_summary}\n\n"
-        f"<b>ID:</b> <code>{esc(conversation_id)}</code>"
+        f"<b>Последние сообщения:</b>\n{conversation_summary}"
     )
+
+    # Build inline keyboard with links
+    buttons = []
+    if crm_lead_id:
+        buttons.append({
+            "text": "📋 Открыть в CRM",
+            "url": f"https://{settings.amocrm_subdomain}.amocrm.ru/leads/detail/{crm_lead_id}",
+        })
+    buttons.append({
+        "text": "💬 Открыть диалог",
+        "url": f"{settings.frontend_url}/#/?conv={conversation_id}&manager_key={settings.dashboard_api_key}&role={role_val}",
+    })
+    buttons.append({
+        "text": "✅ Согласовать",
+        "url": f"{settings.backend_url}/api/v1/manager/approve/{conversation_id}?key={settings.dashboard_api_key}",
+    })
+
+    payload: dict = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+    }
+    if buttons:
+        payload["reply_markup"] = json.dumps({"inline_keyboard": [buttons]})
 
     try:
         httpx.post(
             f"https://api.telegram.org/bot{bot_token}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+            json=payload,
             timeout=10,
         )
     except Exception:
@@ -181,8 +205,15 @@ def _make_stream(
     except Exception:
         logger.debug("Failed to deliver pending manager messages", exc_info=True)
 
-    # Resolve CRM context
+    # Resolve CRM context and classify client if not done yet
     crm_context = chat_service.resolve_crm_context(actor)
+    if crm_context and ctx.conversation.id:
+        try:
+            conv_meta = chat_service.repo.get_conversation_metadata(ctx.conversation.id) or {}
+            if not conv_meta.get("client_type"):
+                chat_service.classify_client_type(actor, crm_context, ctx.conversation.id)
+        except Exception:
+            pass  # non-blocking
 
     generator = chat_service.stream_answer(
         user_text, ctx.actor, ctx.history,
@@ -293,6 +324,21 @@ def start_conversation(req: StartConversationRequest) -> StartConversationRespon
     actor = auth_service.resolve(req.auth)
     actor = actor.model_copy(update={"agent_role": req.agent_role})
     enrich_ctx(user_id=actor.actor_id, agent_role=req.agent_role.value)
+
+    # Manager mode: load existing conversation without owner check
+    is_manager = actor.channel == Channel.manager
+    if is_manager and req.conversation_id:
+        messages = chat_service.repo.get_messages(req.conversation_id, limit=50)
+        conv_status = chat_service.repo.get_conversation_status(req.conversation_id)
+        greeting = "Вы подключены как менеджер. Видите историю переписки клиента."
+        return StartConversationResponse(
+            conversation_id=req.conversation_id,
+            actor=actor,
+            greeting=greeting,
+            status=conv_status.get("status", "active") if conv_status else "active",
+            escalated_reason=conv_status.get("escalated_reason") if conv_status else None,
+        )
+
     try:
         ctx = chat_service.ensure_conversation(actor, conversation_id=req.conversation_id, force_new=req.force_new)
     except Exception:
@@ -330,10 +376,12 @@ def start_conversation(req: StartConversationRequest) -> StartConversationRespon
 def conversation_messages(conversation_id: str, auth: AuthPayload) -> ConversationMessagesResponse:
     actor = auth_service.resolve(auth)
     enrich_ctx(user_id=actor.actor_id, conversation_id=conversation_id)
-    # Verify the conversation belongs to this actor
-    conv = chat_service.repo.get_conversation_owner(conversation_id)
-    if not conv or conv != actor.actor_id:
-        raise HTTPException(403, "Access denied")
+    # Manager can view any conversation; regular users only their own
+    is_manager = actor.channel == Channel.manager
+    if not is_manager:
+        conv = chat_service.repo.get_conversation_owner(conversation_id)
+        if not conv or conv != actor.actor_id:
+            raise HTTPException(403, "Access denied")
     messages = chat_service.get_messages(conversation_id)
     conv_status = chat_service.repo.get_conversation_status(conversation_id)
     return ConversationMessagesResponse(
@@ -349,6 +397,49 @@ def chat_stream(req: ChatStreamRequest) -> StreamingResponse:
     actor = auth_service.resolve(req.auth)
     actor = actor.model_copy(update={"agent_role": req.agent_role})
     enrich_ctx(user_id=actor.actor_id, agent_role=req.agent_role.value)
+
+    # Manager mode: save message as manager_message, don't invoke LLM
+    is_manager = actor.channel == Channel.manager
+    if is_manager and req.conversation_id:
+        chat_service.repo.save_message(
+            conversation_id=req.conversation_id,
+            role="assistant",
+            content=req.message,
+            metadata={"source": "manager", "sender_name": "Менеджер"},
+        )
+        # Activate manager mode — client messages will go to manager, not AI
+        chat_service.repo.set_manager_active(req.conversation_id, True)
+        # Also save to manager_messages table for SSE live delivery
+        owner = chat_service.repo.get_conversation_owner(req.conversation_id)
+        if owner:
+            chat_service.repo.save_manager_message(
+                actor_id=owner,
+                content=req.message,
+                sender_name="Менеджер",
+                conversation_id=req.conversation_id,
+            )
+        def _manager_stream():
+            yield _sse("meta", {"conversation_id": req.conversation_id, "actor_id": actor.actor_id, "channel": "manager"})
+            yield _sse("done", {"text": "", "usage_tokens": 0})
+        return StreamingResponse(_manager_stream(), media_type="text/event-stream")
+
+    # Client mode: check if manager is active → route to manager, skip AI
+    conv_id = req.conversation_id
+    if conv_id and chat_service.repo.is_manager_active(conv_id):
+        # Manager is active — save client message but DON'T invoke LLM
+        chat_service.repo.save_message(
+            conversation_id=conv_id,
+            role="user",
+            content=req.message,
+        )
+        chat_service.repo.update_message_stats(conv_id, req.message)
+        # Acknowledge to client (no AI response)
+        def _client_to_manager_stream():
+            yield _sse("meta", {"conversation_id": conv_id, "actor_id": actor.actor_id, "channel": actor.channel.value})
+            yield _sse("status", {"manager_active": True, "message": "Ваше сообщение передано менеджеру."})
+            yield _sse("done", {"text": "", "usage_tokens": 0})
+        return StreamingResponse(_client_to_manager_stream(), media_type="text/event-stream")
+
     ctx = chat_service.ensure_conversation(actor, conversation_id=req.conversation_id)
     enrich_ctx(conversation_id=ctx.conversation.id)
     return StreamingResponse(
@@ -613,4 +704,277 @@ def amocrm_chat_status():
         "configured": configured,
         "scope_id": scope_id,
         "channel_id": imbox_service.client._channel_id if configured else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# SSE Live Channel — real-time message push
+# ---------------------------------------------------------------------------
+
+@router.get("/chat/listen/{conversation_id}")
+async def listen_events(conversation_id: str, request: Request):
+    """SSE keep-alive: pushes new messages and status changes in real-time.
+
+    Client opens this connection and receives events as they happen.
+    Auth via ?key= (manager) or ?guest_id= / ?token= (client).
+    """
+    import asyncio
+    from datetime import datetime, timezone
+
+    # Validate access: either manager key or conversation owner
+    key_param = request.query_params.get("key", "")
+    guest_id = request.query_params.get("guest_id", "")
+    settings = get_settings()
+
+    is_authorized = False
+    if key_param and settings.dashboard_api_key and key_param == settings.dashboard_api_key:
+        is_authorized = True  # manager
+    elif guest_id:
+        owner = chat_service.repo.get_conversation_owner(conversation_id)
+        if owner and owner == f"guest:{guest_id}":
+            is_authorized = True  # conversation owner
+    # Also allow if actor_id matches (portal/telegram)
+    token = request.query_params.get("token", "")
+    if token:
+        try:
+            from app.auth.portal import PortalAuth
+            actor = PortalAuth().resolve(token)
+            owner = chat_service.repo.get_conversation_owner(conversation_id)
+            if owner and owner == actor.actor_id:
+                is_authorized = True
+        except Exception:
+            pass
+
+    if not is_authorized:
+        raise HTTPException(403, "Access denied")
+
+    async def event_stream():
+        last_check = datetime.now(timezone.utc)
+        while True:
+            try:
+                # Check for new messages since last check
+                new_msgs = chat_service.repo.get_messages_since(conversation_id, last_check)
+                for msg in new_msgs:
+                    msg_data = {
+                        "id": str(msg["id"]),
+                        "role": msg["role"],
+                        "content": msg["content"],
+                        "metadata": msg.get("metadata") or {},
+                        "created_at": msg["created_at"].isoformat() if msg.get("created_at") else None,
+                    }
+                    yield _sse("new_message", msg_data)
+                    # Update last_check to latest message time
+                    if msg.get("created_at"):
+                        last_check = msg["created_at"]
+
+                # If no new messages, just update timestamp
+                if not new_msgs:
+                    last_check = datetime.now(timezone.utc)
+
+                # SSE keepalive heartbeat
+                yield ": heartbeat\n\n"
+            except Exception:
+                logger.debug("SSE listen error", exc_info=True)
+                yield ": error\n\n"
+
+            await asyncio.sleep(1.5)  # Check every 1.5 seconds
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+# ---------------------------------------------------------------------------
+# Manager: hand back to AI
+# ---------------------------------------------------------------------------
+
+@router.post("/manager/handback/{conversation_id}")
+@router.get("/manager/handback/{conversation_id}")
+def manager_handback_to_ai(conversation_id: str, request: Request):
+    """Manager returns conversation to AI. Client messages will go to AI again."""
+    settings = get_settings()
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "").strip()
+    key_param = request.query_params.get("key", "")
+    if not settings.dashboard_api_key or (token != settings.dashboard_api_key and key_param != settings.dashboard_api_key):
+        raise HTTPException(401, "Invalid API key")
+
+    chat_service.repo.set_manager_active(conversation_id, False)
+
+    # Notify client
+    owner = chat_service.repo.get_conversation_owner(conversation_id)
+    if owner:
+        chat_service.repo.save_message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content="Менеджер вернул диалог Эврике. Можете продолжить общение с ИИ-ассистентом.",
+            metadata={"source": "system", "event": "handback"},
+        )
+
+    from fastapi.responses import HTMLResponse
+    html = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Возврат ИИ</title>
+<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#1a1a2e;color:#fff}
+.card{background:#16213e;padding:40px;border-radius:16px;text-align:center;max-width:400px}
+.icon{font-size:64px;margin-bottom:16px}</style></head>
+<body><div class="card"><div class="icon">🤖</div><h2>Диалог возвращён Эврике</h2>
+<p>Клиент теперь общается с ИИ-ассистентом.</p></div></body></html>"""
+    return HTMLResponse(html)
+
+
+# ---------------------------------------------------------------------------
+# Manager approval endpoint (Funnel gate)
+# ---------------------------------------------------------------------------
+
+@router.post("/manager/approve/{conversation_id}")
+@router.get("/manager/approve/{conversation_id}")
+def manager_approve_deal(conversation_id: str, request: Request):
+    """Manager approves a deal — unlocks payment for the client.
+
+    Accepts auth via: Authorization header OR ?key= query param.
+    Advances the deal from 'manager_review' to 'awaiting_payment'.
+    Saves a notification message for the client.
+    Returns HTML page for browser (when opened via TG button).
+    """
+    settings = get_settings()
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "").strip()
+    key_param = request.query_params.get("key", "")
+    if not settings.dashboard_api_key or (token != settings.dashboard_api_key and key_param != settings.dashboard_api_key):
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse("<h2>Неверный ключ авторизации</h2>", status_code=401)
+
+    from app.services.funnel import FunnelService
+
+    funnel = FunnelService(repo=chat_service.repo, crm=chat_service.crm)
+    already = funnel.is_manager_approved(conversation_id)
+
+    if not already:
+        approved = funnel.approve_by_manager(conversation_id)
+        if not approved:
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse("<h2>Сделка не найдена</h2><p>Нет deal mapping для этого разговора.</p>", status_code=404)
+
+        # Save notification message for client
+        owner = chat_service.repo.get_conversation_owner(conversation_id)
+        if owner:
+            chat_service.repo.save_manager_message(
+                actor_id=owner,
+                content="✅ Менеджер согласовал предложение. Можно оформить оплату!",
+                sender_name="Менеджер",
+                conversation_id=conversation_id,
+            )
+            # Also save to conversation messages for history
+            chat_service.repo.save_message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content="✅ Менеджер согласовал предложение. Можно оформить оплату!",
+                metadata={"source": "manager", "sender_name": "Менеджер", "event": "approved"},
+            )
+
+    # Return HTML for browser display
+    from fastapi.responses import HTMLResponse
+    status_text = "уже было согласовано" if already else "успешно согласовано"
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Согласование</title>
+<style>body{{font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#1a1a2e;color:#fff}}
+.card{{background:#16213e;padding:40px;border-radius:16px;text-align:center;max-width:400px}}
+.icon{{font-size:64px;margin-bottom:16px}}
+h2{{margin:0 0 8px}}</style></head>
+<body><div class="card"><div class="icon">✅</div><h2>Предложение {status_text}</h2>
+<p>Разговор: <code>{conversation_id[:8]}...</code></p>
+<p>Клиент получит уведомление.</p></div></body></html>"""
+    return HTMLResponse(html)
+
+
+# ---------------------------------------------------------------------------
+# Admin: trigger renewal deals generation
+# ---------------------------------------------------------------------------
+
+@router.post("/admin/trigger-renewals")
+def trigger_renewals(request: Request):
+    """Trigger auto-renewal deal generation for all active students.
+
+    Requires dashboard_api_key in Authorization header.
+    """
+    settings = get_settings()
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "").strip()
+    if not settings.dashboard_api_key or token != settings.dashboard_api_key:
+        raise HTTPException(401, "Invalid API key")
+
+    from app.services.renewal import RenewalService
+
+    renewal_svc = RenewalService()
+    result = renewal_svc.generate_renewal_deals()
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Admin: check stale deals
+# ---------------------------------------------------------------------------
+
+@router.post("/admin/check-stale-deals")
+def check_stale_deals(request: Request):
+    """Check for stale deals past TTL and take action.
+
+    Requires dashboard_api_key in Authorization header.
+    """
+    settings = get_settings()
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "").strip()
+    if not settings.dashboard_api_key or token != settings.dashboard_api_key:
+        raise HTTPException(401, "Invalid API key")
+
+    from app.services.funnel import FunnelService
+
+    funnel = FunnelService(repo=chat_service.repo, crm=chat_service.crm)
+    result = funnel.check_stale_deals()
+    return result
+
+
+@router.post("/conversations/{conversation_id}/poll")
+def poll_new_messages(conversation_id: str, auth: AuthPayload):
+    """Poll for new manager messages. Returns undelivered messages and marks them delivered."""
+    actor = auth_service.resolve(auth)
+    # Allow both owner and manager to poll
+    is_manager = actor.channel == Channel.manager
+    if not is_manager:
+        owner = chat_service.repo.get_conversation_owner(conversation_id)
+        if not owner or owner != actor.actor_id:
+            return {"messages": []}
+
+    pending = chat_service.repo.get_undelivered_manager_messages(conversation_id)
+    if not pending:
+        return {"messages": []}
+
+    result = []
+    for msg in pending:
+        sender = msg.get("sender_name", "Менеджер")
+        result.append({
+            "id": str(msg["id"]),
+            "content": msg["content"],
+            "sender": sender,
+            "created_at": msg["created_at"].isoformat() if msg.get("created_at") else None,
+            "type": "manager",
+        })
+    chat_service.repo.mark_manager_messages_delivered([str(m["id"]) for m in pending])
+    return {"messages": result}
+
+
+@router.get("/admin/reload-settings")
+def reload_settings(request: Request):
+    """Bust lru_cache on get_settings() to pick up .env changes without restart."""
+    settings = get_settings()
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "").strip()
+    key_param = request.query_params.get("key", "")
+    if not settings.dashboard_api_key or (token != settings.dashboard_api_key and key_param != settings.dashboard_api_key):
+        raise HTTPException(401, "Invalid API key")
+
+    get_settings.cache_clear()
+    new_settings = get_settings()
+    return {
+        "status": "reloaded",
+        "manager_chat_id": new_settings.manager_telegram_chat_id or "(empty)",
+        "reanimation_pipeline": new_settings.amocrm_reanimation_pipeline_id,
     }

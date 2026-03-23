@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -604,7 +605,8 @@ class ConversationRepository:
                     cur.execute(
                         """
                         SELECT status, escalated_reason, escalated_at,
-                               escalated_lead_id, resolved_at, resolved_by
+                               escalated_lead_id, resolved_at, resolved_by,
+                               manager_is_active, last_manager_activity_at
                         FROM conversations WHERE id = %s
                         """,
                         (conversation_id,),
@@ -1220,3 +1222,229 @@ class ConversationRepository:
             }
             self._memory_messages.setdefault(new_id, [])
             return StoredConversation(id=new_id, actor_id=actor.actor_id, channel=actor.channel.value, agent_role=agent_role)
+
+    # ---- Funnel / Pipeline Stage Methods ------------------------------------
+
+    def update_funnel_stage(
+        self, conversation_id: str, stage: str, pipeline: str | None = None,
+    ) -> None:
+        """Update funnel stage on conversation."""
+        if not self._has_db():
+            return
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE conversations
+                        SET funnel_stage = %s,
+                            funnel_pipeline = COALESCE(%s, funnel_pipeline),
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (stage, pipeline, conversation_id),
+                    )
+                conn.commit()
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to update funnel stage conv=%s", conversation_id, exc_info=True)
+
+    def get_funnel_stage(self, conversation_id: str) -> dict | None:
+        """Return {funnel_stage, funnel_pipeline} for conversation."""
+        if not self._has_db():
+            return None
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return None
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT funnel_stage, funnel_pipeline FROM conversations WHERE id = %s",
+                        (conversation_id,),
+                    )
+                    return cur.fetchone()
+        except (psycopg.Error, OSError):
+            return None
+
+    def update_deal_funnel_stage(
+        self, conversation_id: str, stage: str, stage_history_entry: dict | None = None,
+    ) -> None:
+        """Update funnel_stage and append to stage_history on agent_deal_mapping."""
+        if not self._has_db():
+            return
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return
+                with conn.cursor() as cur:
+                    if stage_history_entry:
+                        cur.execute(
+                            """
+                            UPDATE agent_deal_mapping
+                            SET funnel_stage = %s,
+                                stage_history = COALESCE(stage_history, '[]'::jsonb) || %s::jsonb,
+                                updated_at = NOW()
+                            WHERE conversation_id = %s
+                            """,
+                            (stage, json.dumps([stage_history_entry]), conversation_id),
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            UPDATE agent_deal_mapping
+                            SET funnel_stage = %s, updated_at = NOW()
+                            WHERE conversation_id = %s
+                            """,
+                            (stage, conversation_id),
+                        )
+                conn.commit()
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to update deal funnel stage conv=%s", conversation_id, exc_info=True)
+
+    def set_manager_approved(self, conversation_id: str) -> bool:
+        """Mark deal as approved by manager. Returns True if updated."""
+        if not self._has_db():
+            return False
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return False
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE agent_deal_mapping
+                        SET manager_approved_at = NOW(), updated_at = NOW()
+                        WHERE conversation_id = %s AND manager_approved_at IS NULL
+                        """,
+                        (conversation_id,),
+                    )
+                conn.commit()
+                return cur.rowcount > 0
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to set manager approved conv=%s", conversation_id, exc_info=True)
+            return False
+
+    def is_manager_approved(self, conversation_id: str) -> bool:
+        """Check if manager has approved this deal."""
+        if not self._has_db():
+            return False
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return False
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT manager_approved_at FROM agent_deal_mapping WHERE conversation_id = %s",
+                        (conversation_id,),
+                    )
+                    row = cur.fetchone()
+                    return bool(row and row["manager_approved_at"])
+        except (psycopg.Error, OSError):
+            return False
+
+    def save_decline_reasons(
+        self, conversation_id: str, reasons: list[str], notes: str | None = None,
+    ) -> None:
+        """Save structured decline reasons to deal mapping."""
+        if not self._has_db():
+            return
+        try:
+            data = {"reasons": reasons, "notes": notes}
+            with get_connection() as conn:
+                if conn is None:
+                    return
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE agent_deal_mapping
+                        SET decline_reasons = %s::jsonb, updated_at = NOW()
+                        WHERE conversation_id = %s
+                        """,
+                        (json.dumps(data, ensure_ascii=False), conversation_id),
+                    )
+                conn.commit()
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to save decline reasons conv=%s", conversation_id, exc_info=True)
+
+    # ---- Manager Active State -----------------------------------------------
+
+    def set_manager_active(self, conversation_id: str, active: bool) -> None:
+        """Set manager_is_active flag and update last_manager_activity_at."""
+        if not self._has_db():
+            return
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return
+                with conn.cursor() as cur:
+                    if active:
+                        cur.execute(
+                            """
+                            UPDATE conversations
+                            SET manager_is_active = TRUE,
+                                last_manager_activity_at = NOW(),
+                                updated_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (conversation_id,),
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            UPDATE conversations
+                            SET manager_is_active = FALSE,
+                                updated_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (conversation_id,),
+                        )
+                conn.commit()
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to set manager active conv=%s", conversation_id, exc_info=True)
+
+    def is_manager_active(self, conversation_id: str) -> bool:
+        """Check if manager is currently active in this conversation."""
+        if not self._has_db():
+            return False
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return False
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT manager_is_active FROM conversations WHERE id = %s",
+                        (conversation_id,),
+                    )
+                    row = cur.fetchone()
+                    return bool(row and row["manager_is_active"])
+        except (psycopg.Error, OSError):
+            return False
+
+    # ---- SSE Live Channel: get messages since timestamp ----------------------
+
+    def get_messages_since(
+        self, conversation_id: str, since: datetime,
+    ) -> list[dict]:
+        """Get messages newer than `since` for SSE live push."""
+        if not self._has_db():
+            return []
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return []
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, role, content, metadata, created_at
+                        FROM chat_messages
+                        WHERE conversation_id = %s AND created_at > %s
+                        ORDER BY created_at ASC
+                        LIMIT 20
+                        """,
+                        (conversation_id, since),
+                    )
+                    rows = cur.fetchall()
+                    return [dict(r) for r in rows]
+        except (psycopg.Error, OSError):
+            return []

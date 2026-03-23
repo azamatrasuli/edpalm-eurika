@@ -45,6 +45,31 @@ class Settings(BaseSettings):
     amocrm_product_field: int = Field(default=1404990, alias="AMOCRM_PRODUCT_FIELD")
     amocrm_amount_field: int = Field(default=1404992, alias="AMOCRM_AMOUNT_FIELD")
 
+    # --- amoCRM Sales Pipeline Stages ---
+    # Стадии основной воронки продаж (Корзинолёты)
+    # ID стадий настраиваются в amoCRM UI, затем прописываются через env vars
+    amocrm_stage_new: int = Field(default=0, alias="AMOCRM_STAGE_NEW")
+    amocrm_stage_info_gathering: int = Field(default=0, alias="AMOCRM_STAGE_INFO_GATHERING")
+    amocrm_stage_proposal: int = Field(default=0, alias="AMOCRM_STAGE_PROPOSAL")
+    amocrm_stage_manager_review: int = Field(default=0, alias="AMOCRM_STAGE_MANAGER_REVIEW")
+    amocrm_stage_awaiting_payment: int = Field(default=0, alias="AMOCRM_STAGE_AWAITING_PAYMENT")
+    amocrm_stage_paid: int = Field(default=142, alias="AMOCRM_STAGE_PAID")
+    amocrm_stage_declined: int = Field(default=0, alias="AMOCRM_STAGE_DECLINED")
+    amocrm_stage_archive: int = Field(default=143, alias="AMOCRM_STAGE_ARCHIVE")
+
+    # --- amoCRM Reanimation Pipeline ---
+    amocrm_reanimation_pipeline_id: int = Field(default=0, alias="AMOCRM_REANIMATION_PIPELINE_ID")
+    amocrm_reanimation_stage_warmup: int = Field(default=0, alias="AMOCRM_REANIMATION_STAGE_WARMUP")
+    amocrm_reanimation_stage_active: int = Field(default=0, alias="AMOCRM_REANIMATION_STAGE_ACTIVE")
+
+    # --- amoCRM Post-Sale Pipeline ---
+    amocrm_postsale_pipeline_id: int = Field(default=0, alias="AMOCRM_POSTSALE_PIPELINE_ID")
+    amocrm_postsale_stage_access: int = Field(default=0, alias="AMOCRM_POSTSALE_STAGE_ACCESS")
+    amocrm_postsale_stage_questionnaire: int = Field(default=0, alias="AMOCRM_POSTSALE_STAGE_QUESTIONNAIRE")
+    amocrm_postsale_stage_registration: int = Field(default=0, alias="AMOCRM_POSTSALE_STAGE_REGISTRATION")
+    amocrm_postsale_stage_documents: int = Field(default=0, alias="AMOCRM_POSTSALE_STAGE_DOCUMENTS")
+    amocrm_postsale_stage_enrolled: int = Field(default=0, alias="AMOCRM_POSTSALE_STAGE_ENROLLED")
+
     # --- amoCRM Chat API (imBox) ---
     amocrm_chat_channel_id: str = Field(default="", alias="AMOCRM_CHAT_CHANNEL_ID")
     amocrm_chat_secret_key: str = Field(default="", alias="AMOCRM_CHAT_SECRET_KEY")
@@ -54,8 +79,9 @@ class Settings(BaseSettings):
     dms_username: str | None = Field(default=None, alias="DMS_USERNAME")
     dms_password: str | None = Field(default=None, alias="DMS_PASSWORD")
 
-    # --- Frontend ---
+    # --- URLs ---
     frontend_url: str = Field(default="https://edpalm-eurika.vercel.app", alias="FRONTEND_URL")
+    backend_url: str = Field(default="http://localhost:8009", alias="BACKEND_URL")
 
     # --- Escalation ---
     manager_telegram_chat_id: str = Field(default="", alias="MANAGER_TELEGRAM_CHAT_ID")

@@ -95,6 +95,20 @@ export async function fetchMessages(conversationId, auth) {
   return response.json()
 }
 
+export async function pollMessages(conversationId, auth) {
+  try {
+    const response = await safeFetch(`${API_BASE_URL}/api/v1/conversations/${conversationId}/poll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auth),
+    })
+    if (!response.ok) return { messages: [] }
+    return response.json()
+  } catch {
+    return { messages: [] }
+  }
+}
+
 function parseSSE(buffer, onEvent) {
   let boundary = buffer.indexOf('\n\n')
   while (boundary !== -1) {

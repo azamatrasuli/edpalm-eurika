@@ -22,6 +22,14 @@ function getTelegramWebApp() {
   }
 }
 
+export function getConvFromURL() {
+  return getQueryParam('conv')
+}
+
+export function isManagerMode() {
+  return !!getQueryParam('manager_key')
+}
+
 export function getAgentRole() {
   const role = getQueryParam('role')
   if (role === 'support') return 'support'
@@ -55,7 +63,18 @@ export function buildAuthPayload() {
     return { external_token: externalToken }
   }
 
-  // Guest mode — anonymous access, agent qualifies in conversation
+  // Manager mode — dashboard API key from URL
+  const managerKey = getQueryParam('manager_key')
+  if (managerKey) {
+    return { manager_key: managerKey }
+  }
+
+  // Guest mode — use guest_id from URL if provided, otherwise sessionStorage
+  const urlGuestId = getQueryParam('guest_id')
+  if (urlGuestId) {
+    sessionStorage.setItem('eurika_guest_id', urlGuestId)
+    return { guest_id: urlGuestId }
+  }
   let guestId = sessionStorage.getItem('eurika_guest_id')
   if (!guestId) {
     guestId = crypto.randomUUID()

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { MESSAGE_MAX_LENGTH, transcribeAudio } from '../api/client'
 import { VoiceRecorder } from './VoiceRecorder'
 
-export function MessageInput({ disabled, onSend, auth, onTypingStart }) {
+export function MessageInput({ disabled, onSend, auth, onTypingStart, isManagerView = false }) {
   const [text, setText] = useState('')
   const [voiceMode, setVoiceMode] = useState('idle') // 'idle' | 'recording' | 'transcribing'
   const [micError, setMicError] = useState('')
@@ -113,7 +113,7 @@ export function MessageInput({ disabled, onSend, auth, onTypingStart }) {
             if (!val.trim()) wasEmptyRef.current = true
           }}
           onKeyDown={onKeyDown}
-          placeholder="Напишите сообщение..."
+          placeholder={isManagerView ? "Ответ клиенту..." : "Напишите сообщение..."}
           rows={1}
           disabled={disabled}
         />
