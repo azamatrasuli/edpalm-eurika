@@ -151,24 +151,36 @@ class ImBoxService:
         except Exception:
             logger.exception("[forward_user] EXCEPTION while forwarding to imBox")
 
-    def forward_agent_response(self, actor: ActorContext, text: str) -> None:
-        """Forward AI agent response to amoCRM imBox as bot (outgoing) message."""
+    def forward_agent_response(self, actor: ActorContext, text: str, conversation_id: str | None = None) -> None:
+        """Forward AI agent response to amoCRM as a note on the lead.
+
+        amoCRM Chat API for custom channels does not support outgoing messages.
+        Instead, we add the AI response as a note to the lead so the manager
+        sees the full conversation context in the deal card.
+        """
         if not self.is_enabled():
             return
         try:
-            conv_id = self.repo.get_or_create_chat_mapping(actor.actor_id)
-            result = self.client.send_message(
-                conversation_id=conv_id,
-                sender_id="eureka-bot",
-                sender_name="Эврика",
-                text=text,
-                is_bot=True,
-                receiver_id=actor.actor_id,
-                receiver_phone=actor.phone,
-            )
-            logger.info(
-                "[forward_agent] result: success=%s msgid=%s error=%s",
-                result.success, result.msgid, result.error,
-            )
+            # Find lead_id from deal mapping
+            lead_id = None
+            if conversation_id:
+                deal = self.repo.get_deal_mapping(conversation_id)
+                if deal:
+                    lead_id = deal.get("amocrm_lead_id")
+
+            # Fallback: find lead via contact mapping
+            if not lead_id:
+                contact_id = self.repo.get_contact_mapping(actor.actor_id)
+                if contact_id:
+                    lead = self.crm.find_active_lead(contact_id)
+                    if lead:
+                        lead_id = lead.id
+
+            if lead_id:
+                truncated = text[:2000] if len(text) > 2000 else text
+                self.crm.add_note(lead_id, f"[Эврика]: {truncated}")
+                logger.info("[forward_agent] note added to lead=%d, text=%s", lead_id, text[:60])
+            else:
+                logger.debug("[forward_agent] no lead_id found, skipping note")
         except Exception:
-            logger.exception("[forward_agent] EXCEPTION while forwarding to imBox")
+            logger.exception("[forward_agent] EXCEPTION while adding note to lead")

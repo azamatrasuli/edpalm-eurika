@@ -904,6 +904,7 @@ class ConversationRepository:
                         INSERT INTO agent_manager_messages
                           (actor_id, conversation_id, amocrm_msgid, sender_name, content, agent_conversation_id)
                         VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
                         """,
                         (actor_id, conversation_id, amocrm_msgid, sender_name, content, agent_conversation_id),
                     )

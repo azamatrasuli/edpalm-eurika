@@ -263,7 +263,7 @@ def _make_stream(
             usage_tokens=usage_tokens,
             rag_metadata=rag_metadata,
         )
-        imbox_service.forward_agent_response(actor, answer)
+        imbox_service.forward_agent_response(actor, answer, conversation_id=ctx.conversation.id)
     except Exception:
         logger.warning("Failed to save assistant message", exc_info=True)
 
@@ -635,6 +635,13 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
 
     display_name = sender_name or "Менеджер"
 
+    # Track webhook received (#9)
+    event_tracker.track(
+        "imbox_webhook_received",
+        actor_id=actor_id,
+        data={"sender": display_name, "text_preview": text[:60], "msgid": msgid},
+    )
+
     # Check for resolution commands
     cmd = text.strip().lower()
     if cmd in ("/resolve", "/close", "/готово"):
@@ -644,6 +651,13 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
                 agent_conv_id, resolved_by=display_name,
             )
             if resolved:
+                # Notify client that manager resolved (#5)
+                chat_service.repo.save_message(
+                    conversation_id=agent_conv_id,
+                    role="assistant",
+                    content="Менеджер завершил диалог. Если есть вопросы — пишите, AI-агент снова на связи.",
+                    metadata={"source": "system", "event": "escalation_resolved"},
+                )
                 event_tracker.track(
                     "escalation_resolved",
                     conversation_id=agent_conv_id,
@@ -660,7 +674,7 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
         or chat_service.repo.find_latest_conversation(actor_id)
     )
 
-    # Save raw manager message (with agent_conversation_id for deferred delivery)
+    # Save raw manager message with dedup (#4) and agent_conversation_id
     imbox_service.repo.save_manager_message(
         actor_id=actor_id,
         content=text,
@@ -673,15 +687,27 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
     # Inject into agent conversation so client sees it in real-time
     try:
         if agent_conv_id:
+            # Content = clean text, sender info in metadata only (#7)
             chat_service.repo.save_message(
                 conversation_id=agent_conv_id,
                 role="assistant",
-                content=f"[{display_name}]: {text}",
+                content=text,
                 metadata={"source": "manager", "sender_name": display_name, "amocrm_msgid": msgid},
+            )
+            event_tracker.track(
+                "imbox_message_delivered",
+                conversation_id=agent_conv_id,
+                actor_id=actor_id,
+                data={"sender": display_name, "msgid": msgid},
             )
             logger.info("Manager message injected into conv=%s for actor=%s", agent_conv_id, actor_id)
         else:
-            logger.warning("No active/escalated conversation for actor=%s, message saved but not injected", actor_id)
+            event_tracker.track(
+                "imbox_message_deferred",
+                actor_id=actor_id,
+                data={"reason": "no_conversation", "msgid": msgid},
+            )
+            logger.warning("No conversation for actor=%s, message saved for deferred delivery", actor_id)
     except Exception:
         logger.warning("Failed to inject manager message into conversation", exc_info=True)
 

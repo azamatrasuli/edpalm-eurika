@@ -111,6 +111,9 @@ class AmoCRMChatClient:
         }
         url = f"{AMOJO_BASE_URL}{path}"
 
+        # Rate limiting: ~7 req/s max (same as REST API v4)
+        time.sleep(0.15)
+
         logger.info("[request] %s %s", method, url)
         logger.debug("[request] headers=%s", {k: v for k, v in headers.items() if k != "X-Signature"})
         logger.debug("[request] body=%s", body_str[:500])
