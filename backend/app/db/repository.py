@@ -891,13 +891,14 @@ class ConversationRepository:
         amocrm_msgid: str | None = None,
         sender_name: str | None = None,
         agent_conversation_id: str | None = None,
-    ) -> None:
+    ) -> bool:
+        """Save manager message. Returns True if new, False if duplicate."""
         if not self._has_db():
-            return
+            return True
         try:
             with get_connection() as conn:
                 if conn is None:
-                    return
+                    return True
                 with conn.cursor() as cur:
                     cur.execute(
                         """
@@ -908,9 +909,12 @@ class ConversationRepository:
                         """,
                         (actor_id, conversation_id, amocrm_msgid, sender_name, content, agent_conversation_id),
                     )
+                    is_new = cur.rowcount > 0
                 conn.commit()
+                return is_new
         except (psycopg.Error, OSError):
             logger.warning("Failed to save manager message", exc_info=True)
+            return True
 
     def find_actor_by_chat_conversation_id(self, amocrm_conversation_id: str) -> str | None:
         if not self._has_db():

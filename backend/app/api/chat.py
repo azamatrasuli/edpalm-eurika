@@ -675,7 +675,7 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
     )
 
     # Save raw manager message with dedup (#4) and agent_conversation_id
-    imbox_service.repo.save_manager_message(
+    is_new = imbox_service.repo.save_manager_message(
         actor_id=actor_id,
         content=text,
         conversation_id=conversation_id,
@@ -683,6 +683,10 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
         sender_name=display_name,
         agent_conversation_id=agent_conv_id,
     )
+
+    if not is_new:
+        logger.info("Duplicate webhook msgid=%s, skipping injection", msgid)
+        return {"status": "duplicate"}
 
     # Inject into agent conversation so client sees it in real-time
     try:
