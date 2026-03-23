@@ -266,27 +266,29 @@ def _make_stream(
 
     # Handle escalation
     if rag_metadata and rag_metadata.get("escalation"):
-        reason = "Агент инициировал эскалацию"
-        crm_lead_id = None
-        for tc in rag_metadata.get("tool_calls", []):
-            if tc.get("name") == "escalate_to_manager":
-                reason = tc.get("args", {}).get("reason", reason)
-                # Extract lead_id from tool result
-                try:
-                    tc_result = json.loads(tc.get("result", "{}"))
-                    crm_lead_id = tc_result.get("lead_id")
-                except (json.JSONDecodeError, TypeError):
-                    pass
-                break
+        try:
+            reason = "Агент инициировал эскалацию"
+            crm_lead_id = None
+            for tc in rag_metadata.get("tool_calls", []):
+                if tc.get("name") == "escalate_to_manager":
+                    reason = tc.get("args", {}).get("reason", reason)
+                    try:
+                        tc_result = json.loads(tc.get("result", "{}"))
+                        crm_lead_id = tc_result.get("lead_id")
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                    break
 
-        chat_service.repo.update_escalation_metadata(ctx.conversation.id, reason, crm_lead_id)
-        _notify_manager(reason, actor, ctx.conversation.id, answer, crm_lead_id=crm_lead_id)
-        event_tracker.track_escalation(
-            ctx.conversation.id, actor.actor_id, reason,
-            channel=actor.channel.value,
-            agent_role=getattr(actor, "agent_role", "sales"),
-        )
-        yield _sse("escalation", {"reason": reason, "manager_notified": True})
+            chat_service.repo.update_escalation_metadata(ctx.conversation.id, reason, crm_lead_id)
+            _notify_manager(reason, actor, ctx.conversation.id, answer, crm_lead_id=crm_lead_id)
+            event_tracker.track_escalation(
+                ctx.conversation.id, actor.actor_id, reason,
+                channel=actor.channel.value,
+                agent_role=getattr(actor, "agent_role", "sales"),
+            )
+            yield _sse("escalation", {"reason": reason, "manager_notified": True})
+        except Exception:
+            logger.warning("Escalation handling failed", exc_info=True)
 
     # Auto-title: set title from first user message if conversation has none
     try:

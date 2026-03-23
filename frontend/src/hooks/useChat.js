@@ -352,6 +352,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
 
           // Manager is active — client message went to manager, not AI
           if (event === 'status' && payload.manager_active) {
+            typingRef.current = false
             setTyping(false)
             setToolStatus('')
             // Remove empty assistant placeholder
@@ -359,6 +360,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
           }
 
           if (event === 'done') {
+            typingRef.current = false
             setTyping(false)
             setToolStatus('')
             // Remove empty assistant placeholder (manager mode or no-response)
@@ -372,6 +374,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
       })
     } catch (e) {
       if (e.name === 'AbortError') return
+      typingRef.current = false
       setTyping(false)
       // Mark partial response if tokens were received before error
       setMessages((prev) =>
