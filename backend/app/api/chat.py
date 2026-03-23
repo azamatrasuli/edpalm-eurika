@@ -198,7 +198,7 @@ def _make_stream(
             for msg in pending_mgr:
                 sender = msg.get("sender_name", "Менеджер")
                 yield _sse("manager_message", {
-                    "text": f"[{sender}]: {msg['content']}",
+                    "text": msg['content'],
                     "sender": sender,
                     "created_at": msg["created_at"].isoformat() if msg.get("created_at") else None,
                 })
@@ -420,15 +420,8 @@ def chat_stream(req: ChatStreamRequest) -> StreamingResponse:
         )
         # Activate manager mode — client messages will go to manager, not AI
         chat_service.repo.set_manager_active(req.conversation_id, True)
-        # Also save to manager_messages table for SSE live delivery
-        owner = chat_service.repo.get_conversation_owner(req.conversation_id)
-        if owner:
-            chat_service.repo.save_manager_message(
-                actor_id=owner,
-                content=req.message,
-                sender_name="Менеджер",
-                conversation_id=req.conversation_id,
-            )
+        # Message already saved to chat_messages above — SSE /chat/listen delivers it.
+        # Don't save to agent_manager_messages (that's for amoCRM webhook offline delivery only).
         def _manager_stream():
             yield _sse("meta", {"conversation_id": req.conversation_id, "actor_id": actor.actor_id, "channel": "manager"})
             yield _sse("done", {"text": "", "usage_tokens": 0})

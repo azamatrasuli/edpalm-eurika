@@ -425,8 +425,8 @@ class AmoCRMClient:
         return self.get_lead(updated_id) or self._parse_lead(leads[0])
 
     def add_note(self, lead_id: int, text: str) -> bool:
-        payload = [{"entity_id": lead_id, "note_type": "common", "params": {"text": text}}]
-        data = self._request("POST", "/leads/notes", payload)
+        payload = [{"note_type": "common", "params": {"text": text}}]
+        data = self._request("POST", f"/leads/{lead_id}/notes", payload)
         return data is not None
 
     def _parse_lead(self, raw: dict) -> AmoCRMLead:
