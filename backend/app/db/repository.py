@@ -862,7 +862,7 @@ class ConversationRepository:
                     return None
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT actor_id, amocrm_conversation_id, amocrm_chat_id FROM agent_chat_mapping WHERE actor_id = %s",
+                        "SELECT actor_id, amocrm_conversation_id, amocrm_chat_id, amocrm_contact_id, amocrm_lead_id FROM agent_chat_mapping WHERE actor_id = %s",
                         (actor_id,),
                     )
                     return cur.fetchone()
@@ -884,6 +884,22 @@ class ConversationRepository:
                 conn.commit()
         except (psycopg.Error, OSError):
             logger.warning("Failed to update chat mapping for actor=%s", actor_id, exc_info=True)
+
+    def update_chat_mapping_lead_id(self, actor_id: str, lead_id: int) -> None:
+        if not self._has_db():
+            return
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE agent_chat_mapping SET amocrm_lead_id = %s WHERE actor_id = %s",
+                        (lead_id, actor_id),
+                    )
+                conn.commit()
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to update lead_id in chat mapping for actor=%s", actor_id, exc_info=True)
 
     def save_manager_message(
         self, actor_id: str, content: str,

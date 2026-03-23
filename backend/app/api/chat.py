@@ -627,8 +627,15 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
         logger.info("amoCRM webhook: empty text, skipping")
         return {"status": "ok"}
 
-    # Find actor by conversation_id
+    # Find actor by conversation_id (with V2 receiver fallback)
     actor_id = imbox_service.repo.find_actor_by_chat_conversation_id(conversation_id)
+    if not actor_id:
+        # V2 format has receiver.client_id = our actor_id
+        rcid = locals().get("receiver_client_id", "")
+        if rcid:
+            # receiver_client_id IS the actor_id directly
+            actor_id = rcid
+            logger.info("amoCRM webhook: fallback to receiver_client_id=%s", rcid)
     if not actor_id:
         logger.warning("amoCRM webhook: no actor found for conv=%s", conversation_id)
         return {"status": "actor_not_found"}

@@ -126,6 +126,16 @@ class AmoCRMChatClient:
 
         logger.info("[response] %s %s -> %d", method, path, resp.status_code)
 
+        if resp.status_code == 429:
+            logger.warning("[response] RATE LIMITED (429), retrying in 1s...")
+            time.sleep(1.0)
+            try:
+                resp = self._http.request(method, url, headers=headers, content=body_str.encode())
+            except httpx.HTTPError:
+                logger.exception("[request] retry HTTP error: %s %s", method, path)
+                return None
+            logger.info("[response] retry: %s %s -> %d", method, path, resp.status_code)
+
         if not resp.is_success:
             logger.error("[response] FAILED: %d %s", resp.status_code, resp.text[:500])
             return None
