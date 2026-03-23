@@ -36,8 +36,8 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
     setLoading(true)
     setTyping(false)
     setError('')
-    // Clear fingerprints for fresh conversation
-    seenContentRef.current = new Set()
+    // Clear seen DB IDs for fresh conversation
+    seenDbIdsRef.current = new Set()
     // Only reset escalation on forced new conversation
     if (forceNew) {
       setEscalated(false)
@@ -75,10 +75,6 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
                   type: m.metadata?.source === 'manager' ? 'manager' : undefined,
                 }))
             setMessages(loaded)
-            // Seed fingerprints so SSE won't duplicate loaded messages
-            for (const m of loaded) {
-              seedFingerprint(m.role, m.content)
-            }
             // Also check escalation from messages endpoint
             if (historyData.status === 'escalated') {
               setEscalated(true)
@@ -100,7 +96,6 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
       ]
 
       setMessages(initMessages)
-      seedFingerprint('assistant', greeting)
       setStarted(true)
       setLoading(false)
       return data
@@ -145,17 +140,15 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
   }, [])
 
   // --- SSE Live Channel: real-time message delivery ---
-  // Track content fingerprints to prevent ANY duplicates
-  const seenContentRef = useRef(new Set())
-
-  // Helper: seed fingerprint for a message
-  const seedFingerprint = useCallback((role, content) => {
-    if (content) seenContentRef.current.add(`${role}:${content.slice(0, 80)}`)
-  }, [])
+  // Strategy: SSE only delivers "other party" messages.
+  // Client view: SSE delivers manager + system messages. AI responses come via streaming.
+  // Manager view: SSE delivers user + AI + system messages. Manager's own messages shown locally.
+  const seenDbIdsRef = useRef(new Set()) // track DB message IDs to prevent history overlap
 
   useEffect(() => {
     if (!conversationId) return
 
+    const managerMode = isManagerMode()
     const params = new URLSearchParams()
     if (auth.manager_key) params.set('key', auth.manager_key)
     if (auth.guest_id) params.set('guest_id', auth.guest_id)
@@ -171,13 +164,27 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
     evtSource.addEventListener('new_message', (e) => {
       try {
         const msg = JSON.parse(e.data)
-        // Universal dedup: content fingerprint (role + first 80 chars)
-        const fp = `${msg.role}:${msg.content?.slice(0, 80)}`
-        if (seenContentRef.current.has(fp)) return
-        seenContentRef.current.add(fp)
 
-        const isManager = msg.metadata?.source === 'manager'
-        const isSystem = msg.metadata?.source === 'system'
+        // Dedup by DB message ID (prevents history overlap on reconnect)
+        if (msg.id && seenDbIdsRef.current.has(msg.id)) return
+        if (msg.id) seenDbIdsRef.current.add(msg.id)
+
+        const isManagerMsg = msg.metadata?.source === 'manager'
+        const isSystemMsg = msg.metadata?.source === 'system'
+
+        // --- Role-based filtering: only deliver "other party" messages ---
+        if (!managerMode) {
+          // Client view:
+          // - Skip own user messages (shown locally by sendMessage)
+          if (msg.role === 'user') return
+          // - Skip AI responses (delivered via streaming channel)
+          //   But allow manager and system messages
+          if (msg.role === 'assistant' && !isManagerMsg && !isSystemMsg) return
+        } else {
+          // Manager view:
+          // - Skip own manager messages (shown locally by sendMessage)
+          if (isManagerMsg) return
+        }
 
         setMessages((prev) => [
           ...prev,
@@ -186,8 +193,8 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
             dbId: msg.id,
             role: msg.role,
             content: msg.content,
-            type: isManager ? 'manager' : isSystem ? 'system' : undefined,
-            senderName: msg.metadata?.sender_name || (isManager ? 'Менеджер' : undefined),
+            type: isManagerMsg ? 'manager' : isSystemMsg ? 'system' : undefined,
+            senderName: msg.metadata?.sender_name || (isManagerMsg ? 'Менеджер' : undefined),
             fromHistory: true,
           },
         ])
@@ -232,13 +239,9 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
         senderName: 'Менеджер',
       }
       setMessages((prev) => [...prev, mgrMsg])
-      // Seed fingerprint so SSE won't duplicate
-      seenContentRef.current.add(`assistant:${text.slice(0, 80)}`)
     } else {
       const userMsg = { id: crypto.randomUUID(), role: 'user', content: text }
       setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }])
-      // Seed fingerprint
-      seenContentRef.current.add(`user:${text.slice(0, 80)}`)
     }
     setTyping(!managerMode) // manager doesn't wait for LLM
     setToolStatus('')
@@ -306,7 +309,6 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
           }
 
           if (event === 'manager_message') {
-            seedFingerprint('assistant', payload.text)
             setMessages((prev) => [
               ...prev,
               {
@@ -341,14 +343,8 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
           if (event === 'done') {
             setTyping(false)
             setToolStatus('')
-            // Fingerprint the completed assistant response so SSE won't duplicate
-            setMessages((prev) => {
-              const assistantMsg = prev.find((m) => m.id === assistantId)
-              if (assistantMsg?.content) {
-                seedFingerprint('assistant', assistantMsg.content)
-              }
-              return prev.filter((m) => m.id !== assistantId || m.content)
-            })
+            // Remove empty assistant placeholder (manager mode or no-response)
+            setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.content))
             // Update sidebar metadata reactively
             if (bumpCallbackRef.current) {
               bumpCallbackRef.current(conversationIdRef.current, text)
