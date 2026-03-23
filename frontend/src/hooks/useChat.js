@@ -139,12 +139,23 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
   }, [])
 
   // --- SSE Live Channel: real-time message delivery ---
-  const seenMsgIdsRef = useRef(new Set())
+  // Track content fingerprints to prevent ANY duplicates
+  const seenContentRef = useRef(new Set())
+
+  // Seed seen content from loaded messages (history + greeting)
+  useEffect(() => {
+    if (messages.length > 0) {
+      const fingerprints = new Set()
+      for (const m of messages) {
+        fingerprints.add(`${m.role}:${m.content?.slice(0, 80)}`)
+      }
+      seenContentRef.current = fingerprints
+    }
+  }, []) // Only on mount — don't re-run on messages change
 
   useEffect(() => {
     if (!conversationId) return
 
-    // Build auth query params for SSE endpoint
     const params = new URLSearchParams()
     if (auth.manager_key) params.set('key', auth.manager_key)
     if (auth.guest_id) params.set('guest_id', auth.guest_id)
@@ -160,51 +171,32 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
     evtSource.addEventListener('new_message', (e) => {
       try {
         const msg = JSON.parse(e.data)
-        // Dedup: skip messages we already have
-        if (seenMsgIdsRef.current.has(msg.id)) return
-        seenMsgIdsRef.current.add(msg.id)
+        // Universal dedup: content fingerprint (role + first 80 chars)
+        const fp = `${msg.role}:${msg.content?.slice(0, 80)}`
+        if (seenContentRef.current.has(fp)) return
+        seenContentRef.current.add(fp)
 
         const isManager = msg.metadata?.source === 'manager'
         const isSystem = msg.metadata?.source === 'system'
 
-        setMessages((prev) => {
-          // Also check if content already exists (sent by us)
-          if (prev.some((m) => m.dbId === msg.id)) return prev
-          // Skip if this is our own message just sent (content match)
-          const managerMode = isManagerMode()
-          if (managerMode && isManager && prev.some((m) => m.content === msg.content && m.type === 'manager')) return prev
-          if (!managerMode && msg.role === 'user' && prev.some((m) => m.content === msg.content && m.role === 'user')) return prev
-
-          return [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              dbId: msg.id,
-              role: msg.role,
-              content: msg.content,
-              type: isManager ? 'manager' : isSystem ? 'system' : undefined,
-              senderName: msg.metadata?.sender_name || (isManager ? 'Менеджер' : undefined),
-              fromHistory: true,
-            },
-          ]
-        })
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            dbId: msg.id,
+            role: msg.role,
+            content: msg.content,
+            type: isManager ? 'manager' : isSystem ? 'system' : undefined,
+            senderName: msg.metadata?.sender_name || (isManager ? 'Менеджер' : undefined),
+            fromHistory: true,
+          },
+        ])
       } catch {
-        // ignore parse errors
+        // ignore
       }
     })
 
-    evtSource.addEventListener('status', (e) => {
-      try {
-        const data = JSON.parse(e.data)
-        if (data.manager_active !== undefined) {
-          // Could update UI state here
-        }
-      } catch { /* ignore */ }
-    })
-
-    evtSource.onerror = () => {
-      // SSE reconnects automatically
-    }
+    evtSource.onerror = () => { /* SSE auto-reconnects */ }
 
     return () => evtSource.close()
   }, [conversationId, auth])
@@ -232,7 +224,6 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
     const assistantId = crypto.randomUUID()
 
     if (managerMode) {
-      // Manager message: show immediately as manager type, no empty assistant placeholder
       const mgrMsg = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -241,9 +232,13 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
         senderName: 'Менеджер',
       }
       setMessages((prev) => [...prev, mgrMsg])
+      // Seed fingerprint so SSE won't duplicate
+      seenContentRef.current.add(`assistant:${text.slice(0, 80)}`)
     } else {
       const userMsg = { id: crypto.randomUUID(), role: 'user', content: text }
       setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }])
+      // Seed fingerprint
+      seenContentRef.current.add(`user:${text.slice(0, 80)}`)
     }
     setTyping(!managerMode) // manager doesn't wait for LLM
     setToolStatus('')

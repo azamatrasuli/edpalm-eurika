@@ -9,6 +9,7 @@ import { useChat } from '../hooks/useChat'
 import { useConversationList } from '../hooks/useConversationList'
 import { useOnboarding } from '../hooks/useOnboarding'
 import { useTTS } from '../hooks/useTTS'
+import { API_BASE_URL } from '../api/client'
 import { buildAuthPayload, getAgentRole, getConvFromURL, isManagerMode } from '../lib/authContext'
 
 const EUREKA_AVATAR = '/avatar.webp'
@@ -119,6 +120,7 @@ export function ChatPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [handbackLoading, setHandbackLoading] = useState(false)
 
   // Error toast for sidebar operations
   const [errorToast, setErrorToast] = useState('')
@@ -309,15 +311,23 @@ export function ChatPage() {
           {managerMode && convFromURL && (
             <button
               onClick={() => {
-                fetch(`http://127.0.0.1:8009/api/v1/manager/handback/${convFromURL}?key=${new URLSearchParams(window.location.hash.split('?')[1] || '').get('manager_key')}`)
-                  .then(() => {
-                    chat.addSystemMessage('Диалог возвращён Эврике.')
-                  })
+                if (handbackLoading) return
+                setHandbackLoading(true)
+                const key = new URLSearchParams(window.location.hash.split('?')[1] || '').get('manager_key')
+                fetch(`${API_BASE_URL}/api/v1/manager/handback/${convFromURL}?key=${key}`)
                   .catch(() => {})
+                  .finally(() => {
+                    setTimeout(() => setHandbackLoading(false), 3000)
+                  })
               }}
-              className="ml-auto px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition-colors shrink-0"
+              disabled={handbackLoading}
+              className={`ml-auto px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ${
+                handbackLoading
+                  ? 'bg-gray-600/20 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 cursor-pointer'
+              }`}
             >
-              🤖 Вернуть ИИ
+              {handbackLoading ? '⏳ Возвращаю...' : '🤖 Вернуть ИИ'}
             </button>
           )}
         </header>
