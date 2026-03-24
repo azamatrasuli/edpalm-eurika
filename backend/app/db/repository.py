@@ -445,22 +445,14 @@ class ConversationRepository:
                     cur.execute(
                         """
                         UPDATE conversations
-                        SET message_count = message_count + 1,
+                        SET message_count = COALESCE(message_count, 0) + 1,
                             last_user_message = %s
                         WHERE id = %s
                         RETURNING message_count, title
                         """,
                         (user_message[:500], conversation_id),
                     )
-                    row = cur.fetchone()
-
-                    # Auto-title from first user message if no title yet
-                    if row and row["message_count"] == 1 and not row["title"]:
-                        title = user_message[:60].rsplit(" ", 1)[0] if len(user_message) > 60 else user_message
-                        cur.execute(
-                            "UPDATE conversations SET title = %s WHERE id = %s",
-                            (title.strip(), conversation_id),
-                        )
+                    row = cur.fetchone()  # noqa: F841 — title is now set via LLM in api/chat.py
 
                 conn.commit()
         except (psycopg.Error, OSError):

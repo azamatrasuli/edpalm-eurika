@@ -298,22 +298,47 @@ def _make_stream(
         except Exception:
             logger.warning("Escalation handling failed", exc_info=True)
 
-    # Auto-title: set title from first user message if conversation has none
+    # Auto-title: generate via LLM after first agent response, only once
     try:
         from app.db.pool import get_connection
         with get_connection() as conn:
             if conn:
                 with conn.cursor() as cur:
-                    cur.execute("SELECT title FROM conversations WHERE id = %s", (ctx.conversation.id,))
+                    cur.execute(
+                        "SELECT title, message_count FROM conversations WHERE id = %s",
+                        (ctx.conversation.id,),
+                    )
                     row = cur.fetchone()
-                    if row and not row.get("title"):
-                        auto_title = user_text.strip()[:60]
-                        if len(user_text.strip()) > 60:
-                            auto_title = auto_title.rsplit(" ", 1)[0] + "..."
-                        chat_service.repo.update_conversation_title(ctx.conversation.id, auto_title)
-                        yield _sse("title", {"conversation_id": ctx.conversation.id, "title": auto_title})
+                    msg_count = row.get("message_count") or 0 if row else 0
+                    if row and not row.get("title") and msg_count <= 2:
+                        from openai import OpenAI
+                        from app.config import get_settings
+                        settings = get_settings()
+                        oai = OpenAI(api_key=settings.openai_api_key)
+                        title_resp = oai.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": "Придумай короткий заголовок для диалога из 4-6 слов. "
+                                               "Заголовок должен описывать тему диалога. "
+                                               "Только заголовок, без кавычек и точек.",
+                                },
+                                {
+                                    "role": "user",
+                                    "content": f"Сообщение пользователя: {user_text[:200]}\nОтвет агента: {answer[:200]}",
+                                },
+                            ],
+                            temperature=0.3,
+                            max_tokens=30,
+                            timeout=8,
+                        )
+                        auto_title = title_resp.choices[0].message.content.strip()[:60]
+                        if auto_title:
+                            chat_service.repo.update_conversation_title(ctx.conversation.id, auto_title)
+                            yield _sse("title", {"conversation_id": ctx.conversation.id, "title": auto_title})
     except Exception:
-        logger.warning("Auto-title generation failed", exc_info=True)
+        logger.warning("LLM title generation failed", exc_info=True)
 
     yield _sse("done", {"text": answer, "usage_tokens": usage_tokens})
 
