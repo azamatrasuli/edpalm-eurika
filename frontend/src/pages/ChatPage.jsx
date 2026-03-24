@@ -9,6 +9,8 @@ import { useChat } from '../hooks/useChat'
 import { useConversationList } from '../hooks/useConversationList'
 import { useOnboarding } from '../hooks/useOnboarding'
 import { useTTS } from '../hooks/useTTS'
+import { useConsent } from '../hooks/useConsent'
+import { ConsentScreen } from '../components/ConsentScreen'
 import { API_BASE_URL } from '../api/client'
 import { buildAuthPayload, getAgentRole, getConvFromURL, isManagerMode } from '../lib/authContext'
 
@@ -133,7 +135,8 @@ export function ChatPage() {
   }, [])
 
   const onboarding = useOnboarding(auth, actorId, actorPhone)
-  const chat = useChat(auth, agentRole, onboarding.isComplete, { initialConvId: convFromURL })
+  const consent = useConsent(auth)
+  const chat = useChat(auth, agentRole, onboarding.isComplete && consent.consentReady, { initialConvId: convFromURL })
   const convList = useConversationList(auth, agentRole, { onError: showErrorToast })
   const tts = useTTS(auth, { onError: showErrorToast })
 
@@ -261,9 +264,14 @@ export function ChatPage() {
       ? 'Служба поддержки EdPalm. Помогу с вопросами по платформе, документам и оплате.'
       : 'Виртуальный менеджер EdPalm. Помогу подобрать обучение и отвечу по программам.'
 
-  // Phase 1: Loading
-  if (onboarding.isChecking) {
+  // Phase 1: Loading (onboarding + consent check)
+  if (onboarding.isChecking || consent.consentChecking) {
     return <WelcomeScreen subtitle={welcomeText} avatarProps={avatarProps(88)} error={onboarding.error} />
+  }
+
+  // Phase 1.5: Consent screen (before chat starts)
+  if (consent.consentNeeded) {
+    return <ConsentScreen avatarProps={avatarProps(88)} onAccept={consent.acceptConsents} loading={consent.acceptLoading} />
   }
 
   // Phase 2: Chat not started
@@ -329,6 +337,19 @@ export function ChatPage() {
             </div>
             <span className="text-[13px] text-fg-tertiary leading-tight">{managerMode ? 'Просмотр диалога клиента' : headerSubtitle}</span>
           </div>
+          {/* Profile icon */}
+          {!managerMode && (
+            <button
+              onClick={() => { window.location.hash = '#/profile' }}
+              className="ml-auto p-2 rounded-lg hover:bg-inset transition-colors shrink-0"
+              title="Профиль"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="10" cy="7" r="3.5" />
+                <path d="M3.5 17.5c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6" />
+              </svg>
+            </button>
+          )}
           {managerMode && convFromURL && (
             <button
               onClick={() => {

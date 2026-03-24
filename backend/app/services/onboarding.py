@@ -77,6 +77,9 @@ class OnboardingService:
 
         logger.info("Onboarding result: status=%s profile_id=%s", status, profile_id)
 
+        # Enrich from existing profiles with same phone (background)
+        self._try_enrich_from_phone(actor.actor_id, phone)
+
         return OnboardingVerifyResponse(
             status=status,
             profile_id=profile_id or "",
@@ -111,7 +114,39 @@ class OnboardingService:
             verification_status="found",
         )
         logger.info("Auto-saved DMS profile for actor=%s phone=%s", actor_id, norm_phone)
+
+        # Enrich from existing profiles with same phone (background)
+        self._try_enrich_from_phone(actor_id, norm_phone)
+
         return True
+
+    def _try_enrich_from_phone(self, actor_id: str, phone: str) -> None:
+        """If another actor has the same phone, copy their data to this profile (background)."""
+        import threading
+
+        def _run():
+            try:
+                donors = self.repo.find_profiles_by_phone(phone, exclude_actor_id=actor_id)
+                if not donors:
+                    return
+                # Pick the richest donor (DMS-verified first, then most recent)
+                donor = donors[0]
+                logger.info(
+                    "Phone merge: enriching actor=%s from donor=%s (phone=%s)",
+                    actor_id, donor.get("actor_id"), phone,
+                )
+                self.repo.enrich_profile_from_existing(actor_id, donor)
+
+                # Copy memory atoms (entity + preference)
+                from app.db.memory_repository import MemoryRepository
+                mem_repo = MemoryRepository()
+                copied = mem_repo.copy_atoms_to_actor(donor["actor_id"], actor_id)
+                if copied:
+                    logger.info("Phone merge: copied %d atoms to actor=%s", copied, actor_id)
+            except Exception:
+                logger.warning("Phone merge failed for actor=%s phone=%s", actor_id, phone, exc_info=True)
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def get_profile_context_for_llm(self, actor_id: str) -> str | None:
         """Build context string for injection into LLM system messages."""

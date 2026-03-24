@@ -155,9 +155,10 @@ CREATE INDEX IF NOT EXISTS idx_conversations_escalation_open
 CREATE TABLE IF NOT EXISTS agent_user_profiles (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id            TEXT NOT NULL,
-  client_type         TEXT NOT NULL CHECK (client_type IN ('existing', 'new')),
-  user_role           TEXT NOT NULL CHECK (user_role IN ('parent', 'student')),
-  phone               TEXT NOT NULL,
+  display_name        TEXT,
+  client_type         TEXT CHECK (client_type IS NULL OR client_type IN ('existing', 'new')),
+  user_role           TEXT CHECK (user_role IS NULL OR user_role IN ('parent', 'student')),
+  phone               TEXT,
   phone_raw           TEXT,
   fio                 TEXT,
   grade               INT,
@@ -165,8 +166,8 @@ CREATE TABLE IF NOT EXISTS agent_user_profiles (
   dms_verified        BOOLEAN NOT NULL DEFAULT FALSE,
   dms_contact_id      INT,
   dms_data            JSONB,
-  verification_status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (verification_status IN ('pending', 'found', 'not_found', 'unexpected_found', 'new_lead')),
+  verification_status TEXT DEFAULT 'pending'
+    CHECK (verification_status IS NULL OR verification_status IN ('pending', 'found', 'not_found', 'unexpected_found', 'new_lead')),
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

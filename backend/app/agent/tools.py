@@ -22,6 +22,29 @@ logger = logging.getLogger("agent.tools")
 # Tool definitions (OpenAI JSON Schema format)
 # ---------------------------------------------------------------------------
 
+_SAVE_USER_NAME_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "save_user_name",
+        "description": (
+            "Сохранить имя клиента в профиле. "
+            "Вызывай ОДИН РАЗ, когда клиент впервые назвал своё имя в этом диалоге "
+            "и в контексте ещё нет его имени. "
+            "НЕ вызывай если имя уже известно из контекста клиента."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Имя клиента (как он представился, например 'Азамат' или 'Анна Петровна')",
+                },
+            },
+            "required": ["name"],
+        },
+    },
+}
+
 _CHECK_CLIENT_HISTORY_TOOL = {
     "type": "function",
     "function": {
@@ -45,6 +68,7 @@ _CHECK_CLIENT_HISTORY_TOOL = {
 }
 
 SALES_TOOL_DEFINITIONS: list[dict] = [
+    _SAVE_USER_NAME_TOOL,
     {
         "type": "function",
         "function": {
@@ -273,6 +297,7 @@ SALES_TOOL_DEFINITIONS: list[dict] = [
 TOOL_DEFINITIONS = SALES_TOOL_DEFINITIONS
 
 SUPPORT_TOOL_DEFINITIONS: list[dict] = [
+    _SAVE_USER_NAME_TOOL,
     _CHECK_CLIENT_HISTORY_TOOL,
     {
         "type": "function",
@@ -358,6 +383,7 @@ SUPPORT_TOOL_DEFINITIONS: list[dict] = [
 
 
 TEACHER_TOOL_DEFINITIONS: list[dict] = [
+    _SAVE_USER_NAME_TOOL,
     _CHECK_CLIENT_HISTORY_TOOL,
     {
         "type": "function",
@@ -492,6 +518,16 @@ class ToolExecutor:
 
     # ---- tool implementations ---------------------------------------------
 
+    def _tool_save_user_name(self, name: str) -> ToolResult:
+        """Save user's name to their profile for cross-conversation personalization."""
+        if not name or not name.strip():
+            return ToolResult(name="save_user_name", result="Имя не указано.")
+        clean_name = name.strip()
+        if self.actor_id:
+            self.repo.update_profile_display_name(self.actor_id, clean_name)
+            logger.info("Saved display_name='%s' for actor=%s", clean_name, self.actor_id)
+        return ToolResult(name="save_user_name", result=f"Имя '{clean_name}' сохранено в профиле.")
+
     def _tool_search_knowledge_base(self, query: str) -> ToolResult:
         # Auto-advance funnel to "info_gathering" on first KB search in sales
         if self.agent_role == "sales" and self.conversation_id:
@@ -622,11 +658,12 @@ class ToolExecutor:
                                 for s in dms_result.students
                             ],
                         }
+                        norm_phone = _normalize_phone(resolved_phone)
                         self.repo.save_user_profile(
                             actor_id=self.actor_id,
                             client_type="existing",
                             user_role="parent",
-                            phone=_normalize_phone(resolved_phone),
+                            phone=norm_phone,
                             phone_raw=resolved_phone,
                             fio=full_name,
                             grade=first_grade,
@@ -636,6 +673,12 @@ class ToolExecutor:
                             dms_data=dms_data,
                             verification_status="found",
                         )
+                        # Enrich from other profiles with same phone
+                        try:
+                            from app.services.onboarding import OnboardingService
+                            OnboardingService()._try_enrich_from_phone(self.actor_id, norm_phone)
+                        except Exception:
+                            pass
                     except Exception:
                         logger.warning("check_client_history: profile save failed", exc_info=True)
 
@@ -1162,11 +1205,12 @@ class ToolExecutor:
                         for s in result.students
                     ],
                 }
+                norm_phone = _normalize_phone(phone)
                 self.repo.save_user_profile(
                     actor_id=self.actor_id,
                     client_type="existing",
                     user_role="parent",
-                    phone=_normalize_phone(phone),
+                    phone=norm_phone,
                     phone_raw=phone,
                     fio=full_name,
                     grade=first_grade,
@@ -1180,6 +1224,12 @@ class ToolExecutor:
                     "Write-back: saved DMS profile for actor=%s phone=%s",
                     self.actor_id, phone,
                 )
+                # Enrich from other profiles with same phone
+                try:
+                    from app.services.onboarding import OnboardingService
+                    OnboardingService()._try_enrich_from_phone(self.actor_id, norm_phone)
+                except Exception:
+                    pass
             except Exception:
                 logger.warning("Write-back failed for actor=%s", self.actor_id, exc_info=True)
 

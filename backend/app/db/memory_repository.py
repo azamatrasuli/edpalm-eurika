@@ -406,6 +406,194 @@ class MemoryRepository:
             logger.warning("Failed to get recent summaries for actor=%s", actor_id, exc_info=True)
             return []
 
+    # ---- Cross-actor enrichment -----------------------------------------------
+
+    def copy_atoms_to_actor(self, source_actor_id: str, target_actor_id: str) -> int:
+        """Copy entity-type memory atoms from source to target actor.
+
+        Skips atoms that already exist in target (same subject+predicate).
+        Returns count of atoms copied.
+        """
+        if not self._has_db():
+            return 0
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return 0
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO agent_memory_atoms
+                          (actor_id, agent_role, conversation_id, fact_type,
+                           subject, predicate, object, confidence, embedding)
+                        SELECT %s, agent_role, conversation_id, fact_type,
+                               subject, predicate, object, confidence, embedding
+                        FROM agent_memory_atoms src
+                        WHERE src.actor_id = %s
+                          AND src.fact_type IN ('entity', 'preference')
+                          AND src.superseded_by IS NULL
+                          AND (src.expires_at IS NULL OR src.expires_at > NOW())
+                          AND NOT EXISTS (
+                            SELECT 1 FROM agent_memory_atoms tgt
+                            WHERE tgt.actor_id = %s
+                              AND tgt.subject = src.subject
+                              AND tgt.predicate = src.predicate
+                              AND tgt.superseded_by IS NULL
+                          )
+                        """,
+                        (target_actor_id, source_actor_id, target_actor_id),
+                    )
+                    copied = max(cur.rowcount, 0)
+                conn.commit()
+                if copied:
+                    logger.info(
+                        "Copied %d atoms from actor=%s to actor=%s",
+                        copied, source_actor_id, target_actor_id,
+                    )
+                return copied
+        except (psycopg.Error, OSError):
+            logger.warning(
+                "Failed to copy atoms from %s to %s", source_actor_id, target_actor_id,
+                exc_info=True,
+            )
+            return 0
+
+    # ---- User-facing memory management ----------------------------------------
+
+    def list_user_atoms(self, actor_id: str, limit: int = 50) -> list[dict]:
+        """List all active memory atoms for a user (for profile page display)."""
+        if not self._has_db():
+            return []
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return []
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, fact_type, subject, predicate, object, created_at
+                        FROM agent_memory_atoms
+                        WHERE actor_id = %s
+                          AND superseded_by IS NULL
+                          AND (expires_at IS NULL OR expires_at > NOW())
+                        ORDER BY created_at DESC
+                        LIMIT %s
+                        """,
+                        [actor_id, limit],
+                    )
+                    rows = cur.fetchall()
+                    return [dict(r) for r in rows] if rows else []
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to list atoms for actor=%s", actor_id, exc_info=True)
+            return []
+
+    def delete_atom(self, atom_id: str, actor_id: str) -> bool:
+        """Delete (soft-supersede) a single memory atom. Actor check for safety."""
+        if not self._has_db():
+            return False
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return False
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE agent_memory_atoms
+                        SET superseded_by = id
+                        WHERE id = %s::uuid AND actor_id = %s AND superseded_by IS NULL
+                        """,
+                        [atom_id, actor_id],
+                    )
+                    deleted = cur.rowcount
+                conn.commit()
+                return deleted > 0
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to delete atom %s for actor=%s", atom_id, actor_id, exc_info=True)
+            return False
+
+    def clear_user_atoms(self, actor_id: str) -> int:
+        """Soft-delete all active atoms for a user. Returns count deleted."""
+        if not self._has_db():
+            return 0
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return 0
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE agent_memory_atoms
+                        SET superseded_by = id
+                        WHERE actor_id = %s AND superseded_by IS NULL
+                        """,
+                        [actor_id],
+                    )
+                    count = cur.rowcount
+                conn.commit()
+                return max(count, 0)
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to clear atoms for actor=%s", actor_id, exc_info=True)
+            return 0
+
+    def count_user_atoms(self, actor_id: str) -> int:
+        """Count active atoms for a user."""
+        if not self._has_db():
+            return 0
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return 0
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt FROM agent_memory_atoms
+                        WHERE actor_id = %s AND superseded_by IS NULL
+                          AND (expires_at IS NULL OR expires_at > NOW())
+                        """,
+                        [actor_id],
+                    )
+                    row = cur.fetchone()
+                    return row["cnt"] if row else 0
+        except (psycopg.Error, OSError):
+            return 0
+
+    # ---- Identity lookup (fast, no embeddings) --------------------------------
+
+    def get_user_name_from_atoms(self, actor_id: str) -> str | None:
+        """Get user's name from entity-type memory atoms. Pure SQL, ~5ms."""
+        if not self._has_db():
+            return None
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return None
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT object FROM agent_memory_atoms
+                        WHERE actor_id = %s
+                          AND fact_type = 'entity'
+                          AND superseded_by IS NULL
+                          AND (expires_at IS NULL OR expires_at > NOW())
+                          AND (
+                            predicate ILIKE '%%зовут%%'
+                            OR predicate ILIKE '%%имя%%'
+                            OR predicate ILIKE '%%name%%'
+                            OR (subject ILIKE '%%клиент%%' AND predicate ILIKE '%%зовут%%')
+                          )
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """,
+                        [actor_id],
+                    )
+                    row = cur.fetchone()
+                    if row and row.get("object"):
+                        return row["object"].strip()
+                    return None
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to get user name from atoms for actor=%s", actor_id, exc_info=True)
+            return None
+
     # ---- Idle conversations for summarization --------------------------------
 
     def get_idle_unsummarized(self, idle_minutes: int = 30, min_messages: int = 4) -> list[dict]:

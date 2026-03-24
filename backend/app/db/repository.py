@@ -1011,9 +1011,9 @@ class ConversationRepository:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT id, actor_id, client_type, user_role, phone, fio, grade,
-                               children, dms_verified, dms_contact_id, dms_data,
-                               verification_status
+                        SELECT id, actor_id, display_name, client_type, user_role,
+                               phone, fio, grade, children, dms_verified,
+                               dms_contact_id, dms_data, verification_status
                         FROM agent_user_profiles
                         WHERE actor_id = %s
                         """,
@@ -1026,6 +1026,154 @@ class ConversationRepository:
         except (psycopg.Error, OSError):
             logger.warning("Failed to get user profile for actor=%s", actor_id, exc_info=True)
             return None
+
+    def update_profile_display_name(self, actor_id: str, name: str) -> bool:
+        """Update only the display_name field. Creates minimal profile if needed."""
+        if not self._has_db():
+            return False
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return False
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO agent_user_profiles (actor_id, display_name)
+                        VALUES (%s, %s)
+                        ON CONFLICT (actor_id) DO UPDATE
+                          SET display_name = COALESCE(EXCLUDED.display_name, agent_user_profiles.display_name)
+                        """,
+                        (actor_id, name),
+                    )
+                conn.commit()
+                return True
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to update display_name for actor=%s", actor_id, exc_info=True)
+            return False
+
+    # ---- Profile stats -------------------------------------------------------
+
+    def get_profile_stats(self, actor_id: str) -> dict:
+        """Get conversation count and last activity for profile page."""
+        stats = {"conversation_count": 0, "last_active_at": None}
+        if not self._has_db():
+            return stats
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return stats
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt,
+                               MAX(updated_at) AS last_active
+                        FROM conversations
+                        WHERE actor_id = %s AND archived_at IS NULL
+                        """,
+                        (actor_id,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        stats["conversation_count"] = row["cnt"]
+                        stats["last_active_at"] = row["last_active"]
+            return stats
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to get profile stats for actor=%s", actor_id, exc_info=True)
+            return stats
+
+    # ---- Profile enrichment (phone-based merge) ------------------------------
+
+    def find_profiles_by_phone(self, phone: str, exclude_actor_id: str | None = None) -> list[dict]:
+        """Find all profiles with the same phone, optionally excluding one actor."""
+        if not self._has_db() or not phone:
+            return []
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return []
+                with conn.cursor() as cur:
+                    if exclude_actor_id:
+                        cur.execute(
+                            """
+                            SELECT id, actor_id, display_name, client_type, user_role,
+                                   phone, fio, grade, children, dms_verified,
+                                   dms_contact_id, dms_data, verification_status
+                            FROM agent_user_profiles
+                            WHERE phone = %s AND actor_id != %s
+                            ORDER BY dms_verified DESC, updated_at DESC
+                            """,
+                            (phone, exclude_actor_id),
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            SELECT id, actor_id, display_name, client_type, user_role,
+                                   phone, fio, grade, children, dms_verified,
+                                   dms_contact_id, dms_data, verification_status
+                            FROM agent_user_profiles
+                            WHERE phone = %s
+                            ORDER BY dms_verified DESC, updated_at DESC
+                            """,
+                            (phone,),
+                        )
+                    rows = cur.fetchall()
+                    return [dict(r) for r in rows] if rows else []
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to find profiles by phone=%s", phone, exc_info=True)
+            return []
+
+    def enrich_profile_from_existing(self, actor_id: str, donor: dict) -> bool:
+        """Copy missing fields from donor profile to current actor's profile.
+
+        Only fills in fields that are currently NULL — never overwrites existing data.
+        DMS-verified donor data always wins over non-verified current data.
+        """
+        if not self._has_db():
+            return False
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return False
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE agent_user_profiles SET
+                          display_name = COALESCE(agent_user_profiles.display_name, %s),
+                          fio = COALESCE(agent_user_profiles.fio, %s),
+                          grade = COALESCE(agent_user_profiles.grade, %s),
+                          children = CASE
+                            WHEN agent_user_profiles.children = '[]'::jsonb AND %s != '[]'::jsonb
+                            THEN %s ELSE agent_user_profiles.children END,
+                          dms_verified = agent_user_profiles.dms_verified OR %s,
+                          dms_contact_id = COALESCE(agent_user_profiles.dms_contact_id, %s),
+                          dms_data = COALESCE(agent_user_profiles.dms_data, %s),
+                          client_type = COALESCE(agent_user_profiles.client_type, %s),
+                          user_role = COALESCE(agent_user_profiles.user_role, %s)
+                        WHERE actor_id = %s
+                        """,
+                        (
+                            donor.get("display_name"),
+                            donor.get("fio"),
+                            donor.get("grade"),
+                            Json(donor.get("children") or []),
+                            Json(donor.get("children") or []),
+                            donor.get("dms_verified", False),
+                            donor.get("dms_contact_id"),
+                            Json(donor.get("dms_data")) if donor.get("dms_data") else None,
+                            donor.get("client_type"),
+                            donor.get("user_role"),
+                            actor_id,
+                        ),
+                    )
+                conn.commit()
+                logger.info(
+                    "Enriched profile for actor=%s from donor=%s",
+                    actor_id, donor.get("actor_id"),
+                )
+                return True
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to enrich profile for actor=%s", actor_id, exc_info=True)
+            return False
 
     # ---- Payment orders ----------------------------------------------------
 

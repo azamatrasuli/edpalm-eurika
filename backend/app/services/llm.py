@@ -112,7 +112,25 @@ class LLMService:
     # ---- context builders -------------------------------------------------
 
     def _identity_context(self, actor: ActorContext) -> str:
-        name = actor.display_name or "не указано"
+        # Name resolution: auth → profile (display_name/fio) → memory atoms
+        name = actor.display_name
+        if not name:
+            try:
+                from app.services.onboarding import OnboardingService
+                profile = OnboardingService().check_profile(actor.actor_id)
+                if profile:
+                    name = getattr(profile, "display_name", None) or getattr(profile, "fio", None)
+                    if not name and isinstance(profile, dict):
+                        name = profile.get("display_name") or profile.get("fio")
+            except Exception:
+                pass
+        if not name:
+            try:
+                from app.db.memory_repository import MemoryRepository
+                name = MemoryRepository().get_user_name_from_atoms(actor.actor_id)
+            except Exception:
+                pass
+        name = name or "не указано"
         phone = actor.phone or "не указано"
         channel = actor.channel.value
         return (
@@ -120,7 +138,8 @@ class LLMService:
             f"- Канал входа: {channel}\n"
             f"- Имя: {name}\n"
             f"- Телефон: {phone}\n"
-            "- Используй этот контекст в ответе, когда это уместно."
+            "- Используй этот контекст в ответе, когда это уместно.\n"
+            "- Если имя известно — обращайся по имени и НЕ спрашивай его заново."
         )
 
     def _crm_context(self, crm_data: dict | None) -> str:

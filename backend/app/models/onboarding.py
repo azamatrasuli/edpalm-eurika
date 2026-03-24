@@ -49,16 +49,17 @@ class OnboardingVerifyResponse(BaseModel):
 class UserProfile(BaseModel):
     id: str
     actor_id: str
-    client_type: str
-    user_role: str
-    phone: str
+    display_name: str | None = None
+    client_type: str | None = None
+    user_role: str | None = None
+    phone: str | None = None
     fio: str | None = None
     grade: int | None = None
     children: list[dict[str, Any]] = Field(default_factory=list)
     dms_verified: bool = False
     dms_contact_id: int | None = None
     dms_data: dict[str, Any] | None = None
-    verification_status: str = "pending"
+    verification_status: str | None = "pending"
 
 
 class ProfileCheckRequest(BaseModel):

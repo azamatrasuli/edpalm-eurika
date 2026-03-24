@@ -66,6 +66,7 @@ class StartConversationResponse(BaseModel):
     greeting: str
     status: str = "active"
     escalated_reason: str | None = None
+    consent_required: bool = False
 
 
 class ChatStreamRequest(BaseModel):

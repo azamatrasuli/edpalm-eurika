@@ -308,3 +308,145 @@ export async function searchConversations(auth, query, agentRole = null) {
   if (!response.ok) await throwApiError(response)
   return response.json()
 }
+
+// ---------------------------------------------------------------------------
+// Profile API
+// ---------------------------------------------------------------------------
+
+export async function fetchProfile(auth) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function updateProfile(auth, data) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth, ...data }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function fetchMemories(auth) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/memory`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function deleteMemory(auth, atomId) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/memory/${atomId}/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function clearMemories(auth) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/memory/clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+// ---------------------------------------------------------------------------
+// Consent API
+// ---------------------------------------------------------------------------
+
+export async function fetchConsentStatus(auth) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/consent/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function grantConsent(auth, purposeId) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/consent/grant`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth, purpose_id: purposeId, method: 'settings' }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function revokeConsent(auth, purposeId) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/consent/revoke`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth, purpose_id: purposeId, method: 'settings' }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+// ---------------------------------------------------------------------------
+// Data Export & Deletion API
+// ---------------------------------------------------------------------------
+
+export async function requestExport(auth) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function downloadExport(auth, requestId) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/export/${requestId}/download`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function requestDeletion(auth, reason = null) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth, reason }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function cancelDeletion(auth) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/delete/cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}
+
+export async function getDeletionStatus(auth) {
+  const response = await safeFetch(`${API_BASE_URL}/api/v1/profile/delete/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  })
+  if (!response.ok) await throwApiError(response)
+  return response.json()
+}

@@ -26,6 +26,8 @@ from app.api.dashboard import router as dashboard_router  # noqa: E402
 from app.api.onboarding import router as onboarding_router  # noqa: E402
 from app.api.renewal import router as renewal_router  # noqa: E402
 from app.api.telegram import router as telegram_router  # noqa: E402
+from app.api.profile import router as profile_router  # noqa: E402
+from app.api.consent import router as consent_router  # noqa: E402
 from app.db.pool import close_pool, init_pool  # noqa: E402
 from app.errors import error_response  # noqa: E402
 
@@ -225,6 +227,8 @@ app.include_router(dashboard_router)
 app.include_router(onboarding_router)
 app.include_router(renewal_router)
 app.include_router(telegram_router)
+app.include_router(profile_router)
+app.include_router(consent_router)
 
 # Alias: amoCRM Chat API webhook registered without /v1 prefix
 from app.api.chat import amocrm_chat_webhook as _wh, amocrm_chat_webhook_no_scope as _wh_ns  # noqa: E402

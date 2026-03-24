@@ -96,6 +96,8 @@ class ChatService:
 
         # --- Name resolution chain (priority: auth → profile → memory) ---
         name = actor.display_name.strip() if actor.display_name else None
+        logger.info("Greeting name resolution: actor=%s name=%r (source: %s)",
+                    actor.actor_id, name, "auth" if actor.display_name else "profile" if (profile and name) else "none")
         if not name and profile:
             name = getattr(profile, "display_name", None) or getattr(profile, "fio", None)
             # profile may be a dict (from get_user_profile)

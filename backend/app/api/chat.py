@@ -792,17 +792,19 @@ def start_conversation(req: StartConversationRequest) -> StartConversationRespon
     except Exception:
         logger.exception("ensure_conversation failed for %s force_new=%s", actor.actor_id, req.force_new)
         raise
-    # Generate greeting only for new conversations (no history)
-    if not ctx.history:
+    # Generate greeting for new conversations or conversations with no user messages
+    has_user_messages = any(m.role == "user" for m in ctx.history)
+    if not has_user_messages:
         agent_role_val = actor.agent_role.value if hasattr(actor.agent_role, "value") else str(actor.agent_role)
-        event_tracker.track(
-            "conversation_started",
-            conversation_id=ctx.conversation.id,
-            actor_id=actor.actor_id,
-            channel=actor.channel.value,
-            agent_role=agent_role_val,
-            data={"channel": actor.channel.value, "agent_role": agent_role_val},
-        )
+        if not ctx.history:
+            event_tracker.track(
+                "conversation_started",
+                conversation_id=ctx.conversation.id,
+                actor_id=actor.actor_id,
+                channel=actor.channel.value,
+                agent_role=agent_role_val,
+                data={"channel": actor.channel.value, "agent_role": agent_role_val},
+            )
         greeting = chat_service.generate_greeting(actor, ctx.conversation.id)
     else:
         # For resumed conversations, use the first assistant message as greeting
@@ -810,12 +812,21 @@ def start_conversation(req: StartConversationRequest) -> StartConversationRespon
             (m.content for m in ctx.history if m.role == "assistant"),
             "Здравствуйте! Я Эврика, виртуальный менеджер EdPalm."
         )
+    # Check consent (informational flag — frontend is the primary gate)
+    consent_required = False
+    try:
+        from app.db.consent_repository import ConsentRepository
+        consent_required = not ConsentRepository().has_required_consents(actor.actor_id)
+    except Exception:
+        pass
+
     return StartConversationResponse(
         conversation_id=ctx.conversation.id,
         actor=actor,
         greeting=greeting,
         status=ctx.conversation.status,
         escalated_reason=ctx.conversation.escalated_reason,
+        consent_required=consent_required,
     )
 
 
