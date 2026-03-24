@@ -26,6 +26,44 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
   const escalatedRef = useRef(false)
   const [sseConnected, setSseConnected] = useState(true)
   const sseRetryRef = useRef(0)
+  const statusTimerRef = useRef(null)
+  const lastStatusTimeRef = useRef(0)
+
+  const updateToolStatus = useCallback((newStatus) => {
+    const now = Date.now()
+    const elapsed = now - lastStatusTimeRef.current
+    const MIN_DISPLAY_MS = 800
+
+    if (statusTimerRef.current) {
+      clearTimeout(statusTimerRef.current)
+      statusTimerRef.current = null
+    }
+
+    if (!newStatus) {
+      const remaining = MIN_DISPLAY_MS - elapsed
+      if (remaining > 0 && lastStatusTimeRef.current > 0) {
+        statusTimerRef.current = setTimeout(() => {
+          setToolStatus('')
+          statusTimerRef.current = null
+        }, remaining)
+      } else {
+        setToolStatus('')
+      }
+      return
+    }
+
+    const remaining = MIN_DISPLAY_MS - elapsed
+    if (remaining > 0 && lastStatusTimeRef.current > 0) {
+      statusTimerRef.current = setTimeout(() => {
+        setToolStatus(newStatus)
+        lastStatusTimeRef.current = Date.now()
+        statusTimerRef.current = null
+      }, remaining)
+    } else {
+      setToolStatus(newStatus)
+      lastStatusTimeRef.current = now
+    }
+  }, [])
 
   // --- Load a conversation (new or existing) ---
   const loadConversation = useCallback(async (convId = null, forceNew = false) => {
@@ -138,12 +176,16 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
   useEffect(() => { typingRef.current = typing }, [typing])
   useEffect(() => { escalatedRef.current = escalated }, [escalated])
 
-  // Cleanup abort controller on unmount
+  // Cleanup abort controller and status timer on unmount
   useEffect(() => {
     return () => {
       if (abortRef.current) {
         abortRef.current.abort()
         abortRef.current = null
+      }
+      if (statusTimerRef.current) {
+        clearTimeout(statusTimerRef.current)
+        statusTimerRef.current = null
       }
     }
   }, [])
@@ -262,7 +304,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
     }
     typingRef.current = !managerMode // Synchronous guard against double-send
     setTyping(!managerMode)
-    setToolStatus('')
+    updateToolStatus('')
     setError('')
 
     const controller = new AbortController()
@@ -273,8 +315,11 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
     // Show "warming up" hint if server is slow (Render cold start)
     let gotFirstToken = false
     const warmingTimer = setTimeout(() => {
-      if (!gotFirstToken) setToolStatus('Сервер загружается...')
+      if (!gotFirstToken) updateToolStatus('Сервер просыпается...')
     }, 8000)
+    const warmingTimer2 = setTimeout(() => {
+      if (!gotFirstToken) updateToolStatus('Ещё чуть-чуть...')
+    }, 15000)
 
     try {
       await streamChat({
@@ -284,9 +329,10 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
         agentRole,
         signal: controller.signal,
         onEvent: (event, payload) => {
-          if (!gotFirstToken && (event === 'token' || event === 'meta' || event === 'tool_call')) {
+          if (!gotFirstToken && (event === 'token' || event === 'meta' || event === 'tool_call' || event === 'status')) {
             gotFirstToken = true
             clearTimeout(warmingTimer)
+            clearTimeout(warmingTimer2)
           }
 
           if (event === 'meta' && payload.conversation_id && payload.conversation_id !== conversationIdRef.current) {
@@ -296,11 +342,11 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
           }
 
           if (event === 'tool_call') {
-            setToolStatus(payload.label || 'Обрабатываю...')
+            updateToolStatus(payload.label || 'Обрабатываю...')
           }
 
           if (event === 'token') {
-            setToolStatus('')
+            updateToolStatus('')
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId ? { ...m, content: `${m.content}${payload.text || ''}` } : m,
@@ -350,19 +396,24 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
             setSuggestions(payload.chips)
           }
 
-          // Manager is active — client message went to manager, not AI
-          if (event === 'status' && payload.manager_active) {
-            typingRef.current = false
-            setTyping(false)
-            setToolStatus('')
-            // Remove empty assistant placeholder
-            setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.content))
+          // Manager is active OR processing status from backend
+          if (event === 'status') {
+            if (payload.manager_active) {
+              typingRef.current = false
+              setTyping(false)
+              updateToolStatus('')
+              // Remove empty assistant placeholder
+              setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.content))
+            } else if (payload.label) {
+              updateToolStatus(payload.label)
+            }
           }
 
           if (event === 'done') {
             typingRef.current = false
             setTyping(false)
-            setToolStatus('')
+            updateToolStatus('')
+            lastStatusTimeRef.current = 0
             // Remove empty assistant placeholder (manager mode or no-response)
             setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.content))
             // Update sidebar metadata reactively
@@ -405,6 +456,7 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
       setError(errMsg)
     } finally {
       clearTimeout(warmingTimer)
+      clearTimeout(warmingTimer2)
       abortRef.current = null
     }
   }, [auth, agentRole])

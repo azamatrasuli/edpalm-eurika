@@ -13,17 +13,18 @@ from app.errors import error_response
 from app.logging_config import enrich_ctx
 
 _TOOL_LABELS = {
-    "search_knowledge_base": "Ищу в базе знаний...",
-    "get_amocrm_contact": "Проверяю данные клиента...",
-    "get_amocrm_deal": "Проверяю активные сделки...",
-    "create_amocrm_lead": "Создаю заявку...",
-    "update_deal_stage": "Обновляю статус заявки...",
-    "get_client_profile": "Загружаю профиль клиента...",
-    "generate_payment_link": "Готовлю ссылку на оплату...",
-    "escalate_to_manager": "Подключаю менеджера...",
-    "create_manager_task": "Создаю задачу менеджеру...",
-    "register_decline": "Фиксирую обратную связь...",
-    "create_amocrm_ticket": "Создаю обращение...",
+    "search_knowledge_base": "Ищу информацию...",
+    "check_client_history": "Проверяю историю клиента...",
+    "get_amocrm_contact": "Нахожу ваш профиль...",
+    "get_amocrm_deal": "Проверяю текущие заявки...",
+    "create_amocrm_lead": "Оформляю заявку...",
+    "update_deal_stage": "Обновляю статус...",
+    "get_client_profile": "Загружаю профиль ученика...",
+    "generate_payment_link": "Формирую ссылку на оплату...",
+    "escalate_to_manager": "Связываюсь с менеджером...",
+    "create_manager_task": "Передаю задачу менеджеру...",
+    "register_decline": "Сохраняю обратную связь...",
+    "create_amocrm_ticket": "Регистрирую обращение...",
 }
 
 
@@ -42,7 +43,7 @@ from app.models.chat import (
 from app.db.events import EventTracker
 from app.services.chat import ChatService
 from app.services.imbox import ImBoxService
-from app.services.llm import LLMChunk, ToolCallEvent
+from app.services.llm import LLMChunk, StatusEvent, ToolCallEvent
 from app.services.speech import ALLOWED_FORMATS, SpeechService
 
 logger = logging.getLogger("api.chat")
@@ -209,11 +210,13 @@ def _make_stream(
         logger.debug("Failed to deliver pending manager messages", exc_info=True)
 
     # Resolve CRM context and classify client if not done yet
+    yield _sse("status", {"label": "Проверяю контекст..."})
     crm_context = chat_service.resolve_crm_context(actor)
     if crm_context and ctx.conversation.id:
         try:
             conv_meta = chat_service.repo.get_conversation_metadata(ctx.conversation.id) or {}
             if not conv_meta.get("client_type"):
+                yield _sse("status", {"label": "Анализирую историю..."})
                 chat_service.classify_client_type(actor, crm_context, ctx.conversation.id)
         except Exception:
             pass  # non-blocking
@@ -232,7 +235,9 @@ def _make_stream(
     try:
         while True:
             event = next(generator)
-            if isinstance(event, LLMChunk):
+            if isinstance(event, StatusEvent):
+                yield _sse("status", {"label": event.label})
+            elif isinstance(event, LLMChunk):
                 full_text.append(event.token)
                 yield _sse("token", {"text": event.token})
             elif isinstance(event, ToolCallEvent):

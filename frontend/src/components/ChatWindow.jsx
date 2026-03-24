@@ -170,7 +170,7 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
           )}
           <div className="bg-card px-4 py-3 rounded-[20px] rounded-tl-[6px] shadow-xs">
             {toolStatus ? (
-              <div className="flex items-center gap-2 text-fg-muted text-sm animate-[fade-in_0.2s_ease]">
+              <div key={toolStatus} className="flex items-center gap-2 text-fg-muted text-sm animate-[status-crossfade_0.25s_ease]">
                 <span className="w-2 h-2 rounded-full bg-brand animate-[status-pulse_1.5s_infinite]" />
                 {toolStatus}
               </div>

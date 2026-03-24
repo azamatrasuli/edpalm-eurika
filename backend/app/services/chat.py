@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.db.repository import ConversationRepository, StoredConversation
 from app.integrations.amocrm import AmoCRMClient
 from app.models.chat import ActorContext, AgentRole, Channel, ChatMessage, ClientType
-from app.services.llm import LLMService
+from app.services.llm import LLMService, StatusEvent
 from app.services.memory import MemoryService
 from app.services.onboarding import OnboardingService
 
@@ -481,6 +481,7 @@ class ChatService:
                 profile_context = (profile_context + "\n\n" + renewal_ctx) if profile_context else renewal_ctx
 
         # Load memory context from past conversations
+        yield StatusEvent(label="Вспоминаю наш разговор...")
         memory_context = None
         try:
             memory_context = self.memory.get_memory_context(
@@ -499,7 +500,10 @@ class ChatService:
             except Exception:
                 logger.warning("Running summary failed for %s", conversation_id, exc_info=True)
 
-        return self.llm.stream_answer(
+        # Right before LLM call
+        yield StatusEvent(label="Формирую ответ...")
+
+        return (yield from self.llm.stream_answer(
             user_text=user_text,
             actor=actor,
             history=history,
@@ -508,7 +512,7 @@ class ChatService:
             profile_context=profile_context or None,
             memory_context=memory_context,
             running_summary=running_summary,
-        )
+        ))
 
     def get_messages(self, conversation_id: str) -> list[ChatMessage]:
         return self.repo.get_messages(conversation_id)

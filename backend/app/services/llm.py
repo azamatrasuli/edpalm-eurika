@@ -44,6 +44,12 @@ class ToolCallEvent:
 
 
 @dataclass
+class StatusEvent:
+    """Yielded to inform SSE consumer about current processing phase."""
+    label: str
+
+
+@dataclass
 class LLMResult:
     text: str
     usage_tokens: int | None
