@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Целевая архитектура — Eurika (EdPalm)</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: #dfe2e8;
+    --text: #2c3140;
+    --text2: #6d7487;
+    --text3: #9aa0b2;
+    --accent: #3b6cb5;
+    --accent-bg: rgba(59,108,181,.06);
+    --accent-border: rgba(59,108,181,.15);
+    --ya: #5282c1;
+    --ya-bg: rgba(82,130,193,.06);
+    --ya-border: rgba(82,130,193,.20);
+    --ok: #2a7d5b;
+    --ok-bg: rgba(42,125,91,.05);
+    --ok-border: rgba(42,125,91,.18);
+    --note: #8b6caf;
+    --note-bg: rgba(139,108,175,.06);
+    --note-border: rgba(139,108,175,.18);
+    --warm: #c27a1a;
+    --warm-bg: rgba(194,122,26,.05);
+    --warm-border: rgba(194,122,26,.15);
+    --radius: 10px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+  }
+
+  /* Header */
+  .header {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 48px 40px 40px;
+    text-align: center;
+  }
+  .header-label {
+    display: inline-block;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 4px;
+    margin-bottom: 18px;
+    border: 1px solid var(--accent-border);
+  }
+  .header h1 {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .header p {
+    color: var(--text2);
+    font-size: 16px;
+    max-width: 580px;
+    margin: 0 auto;
+  }
+  .header-meta {
+    margin-top: 20px;
+    color: var(--text3);
+    font-size: 13px;
+  }
+  .header-meta span + span::before { content: " · "; margin: 0 6px; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* Section */
+  section { margin-bottom: 56px; }
+  .s-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .s-head .num {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .s-head h2 { font-size: 20px; font-weight: 600; }
+  .s-desc {
+    color: var(--text2);
+    font-size: 14px;
+    margin-bottom: 24px;
+    max-width: 700px;
+  }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .tag.ya { background: var(--ya-bg); color: var(--ya); border: 1px solid var(--ya-border); }
+  .tag.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); }
+  .tag.new { background: var(--note-bg); color: var(--note); border: 1px solid var(--note-border); }
+  .tag.infra { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+  .tag.law { background: var(--warm-bg); color: var(--warm); border: 1px solid var(--warm-border); }
+
+  /* ===== ARCHITECTURE DIAGRAM ===== */
+  .arch {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Zone labels */
+  .zone {
+    position: relative;
+    margin-bottom: 32px;
+  }
+  .zone:last-child { margin-bottom: 0; }
+  .zone-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-weight: 700;
+    color: var(--text3);
+    margin-bottom: 14px;
+    padding-left: 2px;
+  }
+  .zone-label .region {
+    display: inline-block;
+    margin-left: 8px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .zone-label .region.ru { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); }
+  .zone-label .region.cloud { background: var(--ya-bg); color: var(--ya); border: 1px solid var(--ya-border); }
+
+  /* Nodes */
+  .nodes {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .node {
+    border-radius: 8px;
+    padding: 14px 18px;
+    min-width: 140px;
+    position: relative;
+  }
+  .node .n-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .node .n-desc {
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.4;
+  }
+  .node .n-tech {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 6px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  /* Node variants */
+  .node.client {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+  .node.core {
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+  }
+  .node.yandex {
+    background: var(--ya-bg);
+    border: 1px solid var(--ya-border);
+  }
+  .node.ext {
+    background: var(--ok-bg);
+    border: 1px solid var(--ok-border);
+  }
+  .node.compliance {
+    background: var(--note-bg);
+    border: 1px solid var(--note-border);
+  }
+  .node.db {
+    background: var(--warm-bg);
+    border: 1px solid var(--warm-border);
+  }
+
+  /* Connection lines (CSS arrows between zones) */
+  .connections {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+    gap: 40px;
+  }
+  .conn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .conn .arrow {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    position: relative;
+  }
+  .conn .arrow::after {
+    content: "▾";
+    position: absolute;
+    bottom: -8px;
+    left: -4px;
+    font-size: 10px;
+    color: var(--text3);
+  }
+  .conn .arrow.up::after {
+    content: "▴";
+    top: -8px;
+    bottom: auto;
+  }
+  .conn .arrow.both::before {
+    content: "▴";
+    position: absolute;
+    top: -8px;
+    left: -4px;
+    font-size: 10px;
+    color: var(--text3);
+  }
+  .conn-label {
+    font-size: 9px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ===== MIGRATION COMPARE ===== */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .compare-table th {
+    background: var(--surface2);
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text2);
+    font-weight: 600;
+  }
+  .compare-table td {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .compare-table .old {
+    color: var(--text2);
+    text-decoration: line-through;
+    text-decoration-color: var(--border);
+  }
+  .compare-table .new { color: var(--accent); font-weight: 500; }
+  .compare-table code {
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  /* ===== ROADMAP ===== */
+  .roadmap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+  .roadmap::before {
+    content: "";
+    position: absolute;
+    left: 19px;
+    top: 24px;
+    bottom: 24px;
+    width: 2px;
+    background: var(--border);
+  }
+  .phase {
+    display: flex;
+    gap: 20px;
+    position: relative;
+    padding: 12px 0;
+  }
+  .phase-dot {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    z-index: 1;
+    border: 2px solid;
+  }
+  .phase-dot.prep { background: var(--warm-bg); color: var(--warm); border-color: var(--warm-border); }
+  .phase-dot.tech { background: var(--ya-bg); color: var(--ya); border-color: var(--ya-border); }
+  .phase-dot.comp { background: var(--note-bg); color: var(--note); border-color: var(--note-border); }
+  .phase-dot.launch { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-border); }
+  .phase-body {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    flex: 1;
+  }
+  .phase-body h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .phase-body .phase-sub { font-size: 12px; color: var(--text2); margin-bottom: 10px; }
+  .phase-body ul {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+  }
+  .phase-body li {
+    font-size: 13px;
+    color: var(--text2);
+    padding: 2px 0;
+  }
+  .phase-body li::before {
+    content: "○";
+    color: var(--border);
+    margin-right: 6px;
+    font-size: 10px;
+  }
+
+  /* ===== COST ===== */
+  .cost-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .cost-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+  .cost-card .svc { font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+  .cost-card .price { font-size: 22px; font-weight: 600; color: var(--text); }
+  .cost-card .unit { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .cost-total {
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    margin-top: 14px;
+  }
+  .cost-total .price { font-size: 28px; font-weight: 600; color: var(--accent); }
+  .cost-total .unit { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+  /* ===== HYBRID ARCH DETAIL ===== */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .detail-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+  .detail-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .detail-card p {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .detail-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .detail-card li {
+    font-size: 13px;
+    color: var(--text2);
+    padding: 3px 0;
+  }
+  .detail-card li::before {
+    content: "›";
+    color: var(--text3);
+    margin-right: 8px;
+  }
+  .detail-card .mono {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    background: var(--surface2);
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-top: 10px;
+    color: var(--text2);
+    line-height: 1.7;
+  }
+
+  /* ===== CONSENT PREVIEW ===== */
+  .consent-preview {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    max-width: 420px;
+    margin: 0 auto;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,.04);
+  }
+  .consent-preview .cp-header {
+    background: var(--surface2);
+    padding: 14px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .consent-preview .cp-body { padding: 20px; }
+  .consent-preview .cp-text {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+  .consent-preview .cp-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 13px;
+  }
+  .consent-preview .cp-check .box {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .consent-preview .cp-check .box.optional { border-style: dashed; }
+  .consent-preview .cp-check .req { color: var(--text2); font-size: 11px; }
+  .consent-preview .cp-btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 16px;
+    text-align: center;
+    cursor: default;
+  }
+  .consent-preview .cp-footer {
+    text-align: center;
+    padding: 10px 20px 16px;
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 36px;
+    color: var(--text3);
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 48px;
+  }
+
+  @media (max-width: 800px) {
+    .nodes { flex-direction: column; }
+    .detail-grid, .cost-grid { grid-template-columns: 1fr; }
+    .phase-body ul { grid-template-columns: 1fr; }
+    .arch { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-label">План миграции</div>
+  <h1>Целевая архитектура Eurika</h1>
+  <p>Все ИИ-сервисы переносятся на российские платформы. Инфраструктура, БД и хостинг — на собственном сервере в РФ.</p>
+  <div class="header-meta">
+    <span>EdPalm</span>
+    <span>24 марта 2026</span>
+    <span>v1.0</span>
+  </div>
+</div>
+
+<div class="container" style="margin-top:40px;">
+
+<!-- ===== 1. ARCHITECTURE DIAGRAM ===== -->
+<section>
+  <div class="s-head">
+    <div class="num">1</div>
+    <h2>Архитектура системы</h2>
+  </div>
+  <p class="s-desc">Все компоненты, обрабатывающие персональные данные, расположены на территории РФ.</p>
+
+  <div class="arch">
+
+    <!-- Zone: Clients -->
+    <div class="zone">
+      <div class="zone-label">Точки входа пользователей</div>
+      <div class="nodes">
+        <div class="node client">
+          <div class="n-title">Telegram Mini App</div>
+          <div class="n-desc">Основной канал. HMAC-авторизация через BOT_TOKEN</div>
+        </div>
+        <div class="node client">
+          <div class="n-title">Портал EdPalm</div>
+          <div class="n-desc">Встройка через JWT (TTL 15 мин)</div>
+        </div>
+        <div class="node client">
+          <div class="n-title">Внешняя ссылка</div>
+          <div class="n-desc">Подписанный токен (TTL 48ч) для новых лидов</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="connections">
+      <div class="conn">
+        <div class="conn-label">HTTPS</div>
+        <div class="arrow"></div>
+      </div>
+    </div>
+
+    <!-- Zone: Frontend -->
+    <div class="zone">
+      <div class="zone-label">Фронтенд <span class="region ru">Сервер РФ</span></div>
+      <div class="nodes">
+        <div class="node core" style="flex:1;">
+          <div class="n-title">React SPA</div>
+          <div class="n-desc">Общий интерфейс для всех ролей: продавец, поддержка, учитель.<br>Экран согласия ПДн, чат, голос, страница профиля</div>
+          <div class="n-tech">React 19 + Vite + @twa-dev/sdk</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="connections">
+      <div class="conn">
+        <div class="conn-label">API / WebSocket</div>
+        <div class="arrow both"></div>
+      </div>
+    </div>
+
+    <!-- Zone: Backend -->
+    <div class="zone">
+      <div class="zone-label">Бэкенд <span class="region ru">Сервер РФ</span></div>
+      <div class="nodes">
+        <div class="node core">
+          <div class="n-title">FastAPI</div>
+          <div class="n-desc">API чата, онбординг, согласие, профиль, удаление данных</div>
+          <div class="n-tech">Python 3.12 + uvicorn</div>
+        </div>
+        <div class="node core">
+          <div class="n-title">Агент Эврика</div>
+          <div class="n-desc">Промпт, инструменты, память, RAG pre-fetch, function calling</div>
+          <div class="n-tech">3 роли: sales / support / teacher</div>
+        </div>
+        <div class="node core">
+          <div class="n-title">Compliance-слой</div>
+          <div class="n-desc">MaskingFilter логов, consent gate, soft/hard delete, audit log</div>
+          <div class="n-tech">logging_config.py + consent API</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="connections">
+      <div class="conn"><div class="conn-label">SQL</div><div class="arrow both"></div></div>
+      <div class="conn"><div class="conn-label">REST API</div><div class="arrow both"></div></div>
+      <div class="conn"><div class="conn-label">REST API</div><div class="arrow both"></div></div>
+      <div class="conn"><div class="conn-label">REST API</div><div class="arrow both"></div></div>
+    </div>
+
+    <!-- Zone: Data & Services -->
+    <div class="zone" style="display:flex; gap:14px; flex-wrap:wrap;">
+
+      <div style="flex:1; min-width: 220px;">
+        <div class="zone-label">Хранение <span class="region ru">Сервер РФ</span></div>
+        <div class="nodes" style="flex-direction:column;">
+          <div class="node db">
+            <div class="n-title">PostgreSQL + pgvector</div>
+            <div class="n-desc">Вся БД: сообщения, профили, память, KB, согласия, аудит</div>
+            <div class="n-tech">12 таблиц с ПДн + knowledge_chunks</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1.5; min-width: 340px;">
+        <div class="zone-label">ИИ-сервисы <span class="region cloud">Yandex Cloud (РФ)</span></div>
+        <div class="nodes" style="flex-direction:column; gap: 10px;">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="node yandex" style="flex:1;">
+              <div class="n-title">YandexGPT 5.1 Pro</div>
+              <div class="n-desc">LLM, 128K контекст, function calling, streaming</div>
+              <div class="n-tech">~800 ₽ / 1М токенов</div>
+            </div>
+            <div class="node yandex" style="flex:1;">
+              <div class="n-title">Embeddings API</div>
+              <div class="n-desc">text-search-doc + text-search-query, 256d</div>
+              <div class="n-tech">~10 ₽ / 1М токенов</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="node yandex" style="flex:1;">
+              <div class="n-title">SpeechKit STT</div>
+              <div class="n-desc">Распознавание речи, streaming</div>
+              <div class="n-tech">~0.65 ₽ / мин</div>
+            </div>
+            <div class="node yandex" style="flex:1;">
+              <div class="n-title">SpeechKit TTS</div>
+              <div class="n-desc">Синтез речи, голос Алёна, SSML</div>
+              <div class="n-tech">~1 342 ₽ / 1М символов</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:14px;">
+
+      <div style="flex:1; min-width: 200px;">
+        <div class="zone-label">Интеграции <span class="region ru">Серверы РФ</span></div>
+        <div class="nodes">
+          <div class="node ext">
+            <div class="n-title">amoCRM</div>
+            <div class="n-desc">Контакты, сделки, воронки (Sales + Service)</div>
+            <div class="n-tech">REST API v4 + Chat API (imBox)</div>
+          </div>
+          <div class="node ext">
+            <div class="n-title">DMS</div>
+            <div class="n-desc">Клиенты, ученики, заказы, платежи (Tochka Bank)</div>
+            <div class="n-tech">REST API, proxy.hss.center</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<!-- ===== 2. MIGRATION TABLE ===== -->
+<section>
+  <div class="s-head">
+    <div class="num">2</div>
+    <h2>Что меняется</h2>
+  </div>
+  <p class="s-desc">Замены сервисов и новые компоненты для соответствия требованиям.</p>
+
+  <table class="compare-table">
+    <thead>
+      <tr><th>Компонент</th><th>Сейчас (dev)</th><th>Целевое</th><th>Влияние на UX</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>LLM</td>
+        <td class="old">OpenAI GPT-4o</td>
+        <td class="new">YandexGPT 5.1 Pro</td>
+        <td>Сопоставимое качество на русском</td>
+      </tr>
+      <tr>
+        <td>Распознавание речи</td>
+        <td class="old">OpenAI Whisper</td>
+        <td class="new">Yandex SpeechKit STT</td>
+        <td>Без изменений + streaming</td>
+      </tr>
+      <tr>
+        <td>Синтез речи</td>
+        <td class="old">OpenAI TTS (nova)</td>
+        <td class="new">Yandex SpeechKit TTS (Алёна)</td>
+        <td>Другой голос, качественный русский</td>
+      </tr>
+      <tr>
+        <td>Embeddings</td>
+        <td class="old">OpenAI text-embedding-3-small (1536d)</td>
+        <td class="new">YandexGPT embeddings (256d)</td>
+        <td>RAG-поиск сопоставим</td>
+      </tr>
+      <tr>
+        <td>Контекст LLM</td>
+        <td>128K токенов</td>
+        <td>128K токенов</td>
+        <td>Без изменений</td>
+      </tr>
+      <tr>
+        <td>Function calling</td>
+        <td>Стабильный (OpenAI)</td>
+        <td class="new">Hybrid pre-fetch + 5 write-only tools</td>
+        <td>Без изменений для пользователя</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ===== 3. KEY DECISIONS ===== -->
+<section>
+  <div class="s-head">
+    <div class="num">3</div>
+    <h2>Ключевые решения</h2>
+  </div>
+
+  <div class="detail-grid">
+    <div class="detail-card">
+      <h4><span class="tag ya">LLM</span> Hybrid pre-fetch архитектура</h4>
+      <p>RAG-поиск и профиль клиента загружаются <strong>до</strong> вызова LLM на бэкенде (детерминированно). LLM получает готовый контекст и работает только с 5 write-only инструментами через function calling.</p>
+      <div class="mono">
+        1. Бэкенд: RAG search → top-5 чанков<br>
+        2. Бэкенд: get_client_profile → профиль<br>
+        3. Промпт: контекст + 5 tool definitions<br>
+        4. LLM: генерация ответа / вызов tool
+      </div>
+    </div>
+
+    <div class="detail-card">
+      <h4><span class="tag ya">Tools</span> 5 write-only инструментов</h4>
+      <p>Только действия, которые нельзя выполнить детерминированно. Всё остальное — pre-fetch на бэкенде.</p>
+      <ul>
+        <li><strong>create_lead</strong> — создать лид в amoCRM</li>
+        <li><strong>generate_payment_link</strong> — ссылка на оплату</li>
+        <li><strong>create_manager_task</strong> — задача менеджеру</li>
+        <li><strong>register_decline</strong> — зафиксировать отказ</li>
+        <li><strong>escalate_to_manager</strong> — передать человеку</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <h4><span class="tag ya">Speech</span> STT/TTS через SpeechKit</h4>
+      <p>Полная замена OpenAI Whisper и TTS. Фронтенд записывает WebM, бэкенд конвертирует в OGG через ffmpeg перед отправкой в SpeechKit.</p>
+      <div class="mono">
+        WebM (фронт) → ffmpeg → OGG → SpeechKit STT<br>
+        SpeechKit TTS → OGG → фронт (audio player)
+      </div>
+    </div>
+
+    <div class="detail-card">
+      <h4><span class="tag ya">RAG</span> Переиндексация базы знаний</h4>
+      <p>Текст KB не теряется — хранится в MD-файлах и в колонке <code>content</code>. Меняются только числовые векторы (1536d → 256d). pgvector + HNSW-индекс пересоздаётся.</p>
+      <ul>
+        <li>knowledge_chunks: 746 чанков (sales + support)</li>
+        <li>memory_atoms: 582 факта (пересчёт из БД)</li>
+        <li>summaries: 203 саммари (пересчёт из БД)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 4. COMPLIANCE ===== -->
+<section>
+  <div class="s-head">
+    <div class="num">4</div>
+    <h2>Compliance-слой</h2>
+  </div>
+  <p class="s-desc">Новые компоненты для соответствия ФЗ-152.</p>
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start;">
+    <div>
+      <div class="detail-grid" style="grid-template-columns: 1fr;">
+        <div class="detail-card">
+          <h4><span class="tag new">Согласие</span> Экран до онбординга</h4>
+          <ul>
+            <li>3 чекбокса: ПДн (обяз.), ИИ (обяз.), уведомления (опц.)</li>
+            <li>Несовершеннолетние: проверка возраста, форма для родителя</li>
+            <li>Логирование в <code>consent_log</code></li>
+            <li>Отзыв через команду /stop или страницу профиля</li>
+          </ul>
+        </div>
+        <div class="detail-card">
+          <h4><span class="tag new">Удаление</span> Двухфазная схема</h4>
+          <ul>
+            <li>Soft delete сразу → данные скрыты из агента</li>
+            <li>Hard delete через 30 дней (cron-задача, 12 таблиц)</li>
+            <li>amoCRM: обезличивание контакта через API</li>
+            <li>Audit log: запись об удалении для РКН</li>
+          </ul>
+        </div>
+        <div class="detail-card">
+          <h4><span class="tag new">Логи</span> Маскирование ПДн</h4>
+          <ul>
+            <li>MaskingFilter: regex для телефонов (только production)</li>
+            <li>Whitelist безопасных ключей в tool arguments</li>
+            <li>4 точечных правки: dms.py, renewal.py, telegram.py, chat.py</li>
+          </ul>
+        </div>
+        <div class="detail-card">
+          <h4><span class="tag new">Дисклеймер</span> ИИ-ассистент</h4>
+          <ul>
+            <li>Footer 11px над полем ввода (постоянный)</li>
+            <li>Первое сообщение при первом контакте</li>
+            <li>Описание Telegram-бота в BotFather</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="s-desc" style="margin-bottom:14px;">Предварительный вид экрана согласия:</p>
+      <div class="consent-preview">
+        <div class="cp-header">Эврика</div>
+        <div class="cp-body">
+          <div class="cp-text">Эврика — ИИ-ассистент EdPalm. Перед началом общения подтвердите:</div>
+          <div class="cp-check">
+            <div class="box"></div>
+            <div>Согласен на обработку персональных данных <a href="#" style="color:var(--accent);font-size:12px;">Политика →</a><br><span class="req">обязательно</span></div>
+          </div>
+          <div class="cp-check">
+            <div class="box"></div>
+            <div>Согласен на автоматические решения (ИИ)<br><span class="req">обязательно</span></div>
+          </div>
+          <div class="cp-check">
+            <div class="box optional"></div>
+            <div>Хочу получать персонализированные уведомления<br><span class="req">по желанию</span></div>
+          </div>
+          <div class="cp-btn">Начать общение</div>
+        </div>
+        <div class="cp-footer">Эврика — ИИ-ассистент. Ответы могут содержать неточности.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 5. ROADMAP ===== -->
+<section>
+  <div class="s-head">
+    <div class="num">5</div>
+    <h2>Дорожная карта</h2>
+  </div>
+  <p class="s-desc">Последовательность фаз миграции.</p>
+
+  <div class="roadmap">
+    <div class="phase">
+      <div class="phase-dot prep">0</div>
+      <div class="phase-body">
+        <h3>Юридическая подготовка</h3>
+        <div class="phase-sub"><span class="tag law">Юрист</span> Параллельно с разработкой</div>
+        <ul>
+          <li>Политика конфиденциальности</li>
+          <li>Уведомление в РКН (УКЭП)</li>
+          <li>DPA с Yandex Cloud</li>
+          <li>Убрать WhatsApp из роадмапа</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot tech">1</div>
+      <div class="phase-body">
+        <h3>LLM: OpenAI → YandexGPT 5.1 Pro</h3>
+        <div class="phase-sub"><span class="tag ya">Yandex</span> Основная миграция</div>
+        <ul>
+          <li>API-ключ Yandex Cloud AI Studio</li>
+          <li>config.py: base_url, api_key</li>
+          <li>Hybrid pre-fetch архитектура</li>
+          <li>5 write-only tools (function calling)</li>
+          <li>Тестирование 3 ролей</li>
+          <li>Streaming, tool calls</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot tech">2</div>
+      <div class="phase-body">
+        <h3>STT/TTS: OpenAI → Yandex SpeechKit</h3>
+        <div class="phase-sub"><span class="tag ya">Yandex</span></div>
+        <ul>
+          <li>speech.py: перезапись на SpeechKit REST</li>
+          <li>ffmpeg конвертация WebM → OGG</li>
+          <li>Выбор голоса TTS</li>
+          <li>Тестирование voice flow</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot tech">3</div>
+      <div class="phase-body">
+        <h3>Embeddings: OpenAI → YandexGPT (256d)</h3>
+        <div class="phase-sub"><span class="tag ya">Yandex</span></div>
+        <ul>
+          <li>SQL миграция: vector(1536) → vector(256)</li>
+          <li>Пересоздание HNSW-индексов</li>
+          <li>rag/loader.py + rag/search.py</li>
+          <li>Перезагрузка KB (sales, support)</li>
+          <li>Пересчёт memory_atoms + summaries</li>
+          <li>Тестирование RAG-качества</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot comp">4</div>
+      <div class="phase-body">
+        <h3>Согласие ПДн + дисклеймер</h3>
+        <div class="phase-sub"><span class="tag new">Compliance</span></div>
+        <ul>
+          <li>consent_log таблица</li>
+          <li>Экран согласия (фронтенд)</li>
+          <li>Обработка несовершеннолетних</li>
+          <li>Footer ИИ-ассистент</li>
+          <li>API согласия (бэкенд)</li>
+          <li>Описание бота в BotFather</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot comp">5</div>
+      <div class="phase-body">
+        <h3>Маскирование логов</h3>
+        <div class="phase-sub"><span class="tag new">Compliance</span></div>
+        <ul>
+          <li>MaskingFilter в logging_config.py</li>
+          <li>Whitelist args в tools.py</li>
+          <li>4 точечных правки</li>
+          <li>Только APP_ENV=production</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot comp">6</div>
+      <div class="phase-body">
+        <h3>Удаление данных + профиль</h3>
+        <div class="phase-sub"><span class="tag new">Compliance</span></div>
+        <ul>
+          <li>Soft delete + hard delete (30 дн.)</li>
+          <li>amoCRM обезличивание</li>
+          <li>Страница профиля (фронтенд)</li>
+          <li>API экспорта данных (JSON)</li>
+          <li>audit_log таблица</li>
+          <li>Cron-задача очистки</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot launch">7</div>
+      <div class="phase-body">
+        <h3>Тестирование и запуск</h3>
+        <div class="phase-sub"><span class="tag ok">Финал</span></div>
+        <ul>
+          <li>Полный регресс 3 ролей</li>
+          <li>Consent + deletion flow</li>
+          <li>Юридическая проверка (юрист)</li>
+          <li>Публикация политики</li>
+          <li>Деплой на сервер РФ</li>
+          <li style="visibility:hidden">—</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 6. COST ===== -->
+<section>
+  <div class="s-head">
+    <div class="num">6</div>
+    <h2>Стоимость целевого стека</h2>
+  </div>
+  <p class="s-desc">Оценка при текущем объёме использования.</p>
+
+  <div class="cost-grid">
+    <div class="cost-card">
+      <div class="svc">YandexGPT 5.1 Pro</div>
+      <div class="price">1–3 тыс. ₽</div>
+      <div class="unit">в месяц · ~800 ₽/1М токенов</div>
+    </div>
+    <div class="cost-card">
+      <div class="svc">SpeechKit STT</div>
+      <div class="price">100–300 ₽</div>
+      <div class="unit">в месяц · ~0.65 ₽/мин</div>
+    </div>
+    <div class="cost-card">
+      <div class="svc">SpeechKit TTS</div>
+      <div class="price">200–500 ₽</div>
+      <div class="unit">в месяц · ~1 342 ₽/1М символов</div>
+    </div>
+    <div class="cost-card">
+      <div class="svc">YandexGPT Embeddings</div>
+      <div class="price">~10 ₽</div>
+      <div class="unit">в месяц · минимальный объём</div>
+    </div>
+    <div class="cost-card">
+      <div class="svc">pgvector / PostgreSQL</div>
+      <div class="price">0 ₽</div>
+      <div class="unit">на своём сервере</div>
+    </div>
+    <div class="cost-card">
+      <div class="svc">amoCRM</div>
+      <div class="price">текущая</div>
+      <div class="unit">подписка без изменений</div>
+    </div>
+  </div>
+  <div class="cost-total">
+    <div class="price">~2–5 тыс. ₽ / мес</div>
+    <div class="unit">Итого за ИИ-сервисы (без учёта сервера)</div>
+  </div>
+</section>
+
+</div>
+
+<div class="footer">
+  Целевая архитектура Eurika (EdPalm) — 24 марта 2026 · Для внутреннего использования
+</div>
+
+</body>
+</html>
