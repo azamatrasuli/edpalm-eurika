@@ -265,7 +265,7 @@ export function useConversationList(auth, agentRole = 'sales', { onError } = {})
         if (c.id !== conversationId) return c
         return {
           ...c,
-          message_count: (c.message_count || 0) + 2,
+          message_count: (c.message_count || 0) + 1,
           last_user_message: userText,
           updated_at: new Date().toISOString(),
         }

@@ -297,7 +297,7 @@ export function ChatPage() {
         isCreating={isCreating}
         newChatDisabled={(() => {
           const ac = convList.conversations.find((c) => c.id === convList.activeId)
-          return !!(ac && (!ac.message_count || ac.message_count <= 1))
+          return !!(ac && !ac.title && (!ac.message_count || ac.message_count === 0))
         })()}
         onClose={() => setSidebarOpen(false)}
         onSelect={handleSelectConversation}

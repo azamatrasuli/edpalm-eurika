@@ -162,6 +162,7 @@ class ConversationRepository:
                         )
 
                 # Guard: reuse existing empty conversation instead of creating new
+                # Only reuse conversations that are truly empty: no user messages AND no title
                 if force_new:
                     cur.execute(
                         """
@@ -172,7 +173,8 @@ class ConversationRepository:
                         FROM conversations
                         WHERE actor_id = %s AND agent_role = %s
                           AND archived_at IS NULL
-                          AND (message_count IS NULL OR message_count <= 1)
+                          AND (message_count IS NULL OR message_count = 0)
+                          AND title IS NULL
                         ORDER BY created_at DESC LIMIT 1
                         """,
                         (actor.actor_id, agent_role),
@@ -184,21 +186,32 @@ class ConversationRepository:
                             "DELETE FROM chat_messages WHERE conversation_id = %s",
                             (empty_row["id"],),
                         )
+                        # Reset metadata for clean reuse
+                        cur.execute(
+                            """
+                            UPDATE conversations
+                            SET message_count = 0, title = NULL, last_user_message = NULL,
+                                status = 'active', escalated_at = NULL, escalated_reason = NULL,
+                                updated_at = now()
+                            WHERE id = %s
+                            """,
+                            (empty_row["id"],),
+                        )
                         conn.commit()
                         return StoredConversation(
                             id=str(empty_row["id"]),
                             actor_id=empty_row["actor_id"],
                             channel=empty_row["channel"],
                             agent_role=empty_row.get("agent_role", "sales") or "sales",
-                            status=empty_row.get("status", "active") or "active",
-                            title=empty_row.get("title"),
-                            message_count=empty_row.get("message_count", 0) or 0,
-                            last_user_message=empty_row.get("last_user_message"),
-                            escalated_at=empty_row.get("escalated_at"),
-                            escalated_reason=empty_row.get("escalated_reason"),
+                            status="active",
+                            title=None,
+                            message_count=0,
+                            last_user_message=None,
+                            escalated_at=None,
+                            escalated_reason=None,
                             created_at=empty_row.get("created_at"),
-                            updated_at=empty_row.get("updated_at"),
-                            archived_at=empty_row.get("archived_at"),
+                            updated_at=datetime.now(tz=timezone.utc),
+                            archived_at=None,
                         )
 
                     # Hard limit: max 20 conversations per hour
