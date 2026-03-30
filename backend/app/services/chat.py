@@ -96,8 +96,8 @@ class ChatService:
 
         # --- Name resolution chain (priority: auth → profile → memory) ---
         name = actor.display_name.strip() if actor.display_name else None
-        logger.info("Greeting name resolution: actor=%s name=%r (source: %s)",
-                    actor.actor_id, name, "auth" if actor.display_name else "profile" if (profile and name) else "none")
+        logger.info("Greeting name resolution: actor=%s has_name=%s source=%s",
+                    actor.actor_id, bool(name), "auth" if actor.display_name else "profile" if (profile and name) else "none")
         if not name and profile:
             name = getattr(profile, "display_name", None) or getattr(profile, "fio", None)
             # profile may be a dict (from get_user_profile)
@@ -215,6 +215,9 @@ class ChatService:
                     f"Привет! Я Эврика из EdPalm 😊 "
                     "Как к вам обращаться?"
                 )
+
+        # AI disclaimer covered by UI: header ("ИИ-ассистент EdPalm") + footer
+        # No need to duplicate in the greeting message
 
         self.save_assistant_message(conversation_id, greeting, usage_tokens=None)
         return greeting
@@ -416,6 +419,22 @@ class ChatService:
         if cached_summary:
             dialog_text = f"Предыдущее краткое содержание:\n{cached_summary}\n\nНовые сообщения:\n{dialog_text}"
 
+        # Phase 6: tokenize dialog before sending to LLM, restore after
+        _pii_map_rs = None
+        _rs_settings = get_settings()
+        if _rs_settings.pii_proxy_enabled:
+            try:
+                from app.services.pii_proxy import PiiMapService
+                _pii_svc_rs = PiiMapService()
+                # conversation_id is available; get actor_id from conversation
+                _actor_id_rs = self.repo.get_conversation_owner(conversation_id)
+                if _actor_id_rs:
+                    _pii_map_rs = _pii_svc_rs.load(_actor_id_rs)
+                    if _pii_map_rs and not _pii_map_rs.is_empty():
+                        dialog_text = _pii_map_rs.tokenize(dialog_text)
+            except Exception:
+                _pii_map_rs = None
+
         try:
             from app.services.openai_client import get_openai_client, is_quota_error, switch_to_fallback
             from openai import RateLimitError
@@ -438,6 +457,9 @@ class ChatService:
                 else:
                     raise
             summary = response.choices[0].message.content.strip()
+            # Phase 6: restore PII in summary before saving
+            if _pii_map_rs and not _pii_map_rs.is_empty():
+                summary = _pii_map_rs.restore(summary)
         except Exception:
             logger.warning("Running summary generation failed for conv=%s", conversation_id, exc_info=True)
             return cached_summary  # return stale cache if available
@@ -530,6 +552,20 @@ class ChatService:
         # Right before LLM call
         yield StatusEvent(label=_status_label("thinking"))
 
+        # PII proxy: build map if enabled
+        pii_map = None
+        settings = get_settings()
+        if settings.pii_proxy_enabled:
+            try:
+                from app.services.pii_proxy import PiiMapService
+                _pii_svc = PiiMapService()
+                pii_map = _pii_svc.build_for_actor(actor, crm_context)
+                # Save updated map back to DB after populate
+                _pii_svc.save(actor.actor_id, pii_map)
+            except Exception:
+                logger.warning("PII proxy init failed, proceeding without", exc_info=True)
+                pii_map = None
+
         return (yield from self.llm.stream_answer(
             user_text=user_text,
             actor=actor,
@@ -539,6 +575,7 @@ class ChatService:
             profile_context=profile_context or None,
             memory_context=memory_context,
             running_summary=running_summary,
+            pii_map=pii_map,
         ))
 
     def get_messages(self, conversation_id: str) -> list[ChatMessage]:

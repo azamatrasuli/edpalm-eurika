@@ -240,7 +240,7 @@ function DataTab({ onExport, deletion, onRequestDeletion, onCancelDeletion }) {
         ) : !showDeleteConfirm ? (
           <div>
             <div className="text-[13px] text-[var(--text-primary)] mb-3">
-              Это удалит все ваши данные: профиль, разговоры, память, данные в CRM. Период восстановления — 14 дней.
+              Это удалит все ваши данные: профиль, разговоры, память, данные в CRM. Период восстановления — 30 дней.
             </div>
             <button
               onClick={() => setShowDeleteConfirm(true)}

@@ -34,6 +34,14 @@ class KnowledgeSearch:
         from openai import RateLimitError
         from app.services.openai_client import is_quota_error, switch_to_fallback, get_openai_client
 
+        # PII: regex-scan text before sending to OpenAI embeddings (152-ФЗ)
+        try:
+            if self.settings.pii_proxy_enabled:
+                from app.services.pii_proxy import PiiMap, scan_and_extend
+                text = scan_and_extend(PiiMap(), text)
+        except Exception:
+            pass  # graceful fallback — embed raw text
+
         with log_external_call("openai", "embed_query"):
             try:
                 response = self.client.embeddings.create(

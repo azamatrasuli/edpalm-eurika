@@ -11,7 +11,7 @@ import { useOnboarding } from '../hooks/useOnboarding'
 import { useTTS } from '../hooks/useTTS'
 import { useConsent } from '../hooks/useConsent'
 import { ConsentScreen } from '../components/ConsentScreen'
-import { API_BASE_URL } from '../api/client'
+import { API_BASE_URL, fetchCapabilities } from '../api/client'
 import { buildAuthPayload, getAgentRole, getConvFromURL, isManagerMode } from '../lib/authContext'
 
 const EUREKA_AVATAR = '/avatar.webp'
@@ -139,6 +139,11 @@ export function ChatPage() {
   const chat = useChat(auth, agentRole, onboarding.isComplete && consent.consentReady, { initialConvId: convFromURL })
   const convList = useConversationList(auth, agentRole, { onError: showErrorToast })
   const tts = useTTS(auth, { onError: showErrorToast })
+  const [sttEnabled, setSttEnabled] = useState(false)
+
+  useEffect(() => {
+    fetchCapabilities().then((caps) => setSttEnabled(caps.stt_enabled ?? false))
+  }, [])
 
   // Wire SSE callbacks → sidebar (stable refs, runs once)
   useEffect(() => {
@@ -254,15 +259,15 @@ export function ChatPage() {
   const isSupport = agentRole === 'support'
   const isTeacher = agentRole === 'teacher'
   const headerSubtitle = isTeacher
-    ? 'Виртуальный учитель EdPalm'
+    ? 'Учитель EdPalm'
     : isSupport
-      ? 'Служба поддержки EdPalm'
-      : 'AI менеджер EdPalm'
+      ? 'Поддержка EdPalm'
+      : 'Менеджер EdPalm'
   const welcomeText = isTeacher
-    ? 'Виртуальный учитель EdPalm. Помогу разобраться в любом предмете и подготовиться к аттестации.'
+    ? 'ИИ-учитель EdPalm. Помогу разобраться в любом предмете и подготовиться к аттестации.'
     : isSupport
-      ? 'Служба поддержки EdPalm. Помогу с вопросами по платформе, документам и оплате.'
-      : 'Виртуальный менеджер EdPalm. Помогу подобрать обучение и отвечу по программам.'
+      ? 'ИИ-ассистент поддержки EdPalm. Помогу с вопросами по платформе, документам и оплате.'
+      : 'ИИ-ассистент EdPalm. Помогу подобрать обучение и отвечу по программам.'
 
   // Phase 1: Loading (onboarding + consent check)
   if (onboarding.isChecking || consent.consentChecking) {
@@ -271,7 +276,7 @@ export function ChatPage() {
 
   // Phase 1.5: Consent screen (before chat starts)
   if (consent.consentNeeded) {
-    return <ConsentScreen avatarProps={avatarProps(88)} onAccept={consent.acceptConsents} loading={consent.acceptLoading} />
+    return <ConsentScreen avatarProps={avatarProps(88)} onAccept={consent.acceptConsents} loading={consent.acceptLoading} isMinor={consent.isMinor} minorAge={consent.minorAge} />
   }
 
   // Phase 2: Chat not started
@@ -396,7 +401,7 @@ export function ChatPage() {
           toolStatus={chat.toolStatus}
           loading={chat.loading}
           onButtonClick={(value) => handleSend(value)}
-          onTTSPlay={tts.play}
+          onTTSPlay={tts.supported ? tts.play : null}
           ttsPlayingId={tts.playingId}
           ttsState={tts.ttsState}
           isManagerView={managerMode}
@@ -409,7 +414,7 @@ export function ChatPage() {
         )}
 
         <div className="shrink-0 px-5 pt-3 pb-[calc(16px+env(safe-area-inset-bottom,0px))] bg-input-area backdrop-blur-[16px] border-t border-input-area-border max-sm:px-3 max-sm:pt-2.5">
-          <MessageInput disabled={chat.typing || chat.escalated || chat.loading} onSend={handleSend} auth={auth} onTypingStart={chat.clearSuggestions} isManagerView={managerMode} />
+          <MessageInput disabled={chat.typing || chat.escalated || chat.loading} onSend={handleSend} auth={auth} onTypingStart={chat.clearSuggestions} isManagerView={managerMode} sttEnabled={sttEnabled} />
         </div>
       </div>
 

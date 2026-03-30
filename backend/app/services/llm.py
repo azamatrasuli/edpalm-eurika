@@ -56,6 +56,19 @@ class LLMResult:
     rag_metadata: dict | None = None
 
 
+def _restore_args(pii_map: Any, args: dict) -> dict:
+    """Restore PII tokens in tool call args (Phase 4)."""
+    result = {}
+    for k, v in args.items():
+        if isinstance(v, str):
+            result[k] = pii_map.restore(v)
+        elif isinstance(v, list):
+            result[k] = [pii_map.restore(i) if isinstance(i, str) else i for i in v]
+        else:
+            result[k] = v
+    return result
+
+
 class LLMService:
     MAX_TOOL_ITERATIONS = 5
 
@@ -196,6 +209,7 @@ class LLMService:
         profile_context: str | None = None,
         memory_context: str | None = None,
         running_summary: str | None = None,
+        pii_map: Any | None = None,
     ) -> Generator[LLMChunk | ToolCallEvent, None, LLMResult]:
         """
         Stream LLM answer with function calling support.
@@ -233,10 +247,30 @@ class LLMService:
         if crm_ctx_str:
             messages.append({"role": "system", "content": crm_ctx_str})
 
+        # Phase 2+3: PII tokenization — apply before sending to OpenAI
+        from app.services.pii_proxy import scan_and_extend, StreamingPiiRestorer
+        pii_restorer: StreamingPiiRestorer | None = None
+        if pii_map is not None and not pii_map.is_empty():
+            # Phase 2: tokenize system messages (identity, profile, memory, crm, running_summary)
+            for msg in messages:
+                if msg.get("role") == "system" and msg.get("content"):
+                    msg["content"] = pii_map.tokenize(msg["content"])
+            # Phase 3: tokenize user text (also scan for new PII in it)
+            user_text = scan_and_extend(pii_map, user_text)
+            # Phase 5: prepare streaming restorer
+            pii_restorer = StreamingPiiRestorer(pii_map)
+            logger.debug("PII proxy active: %d mappings", len(pii_map.forward))
+
         # Count system tokens, then fill history within budget
         system_tokens = sum(_count_tokens(m["content"]) + 4 for m in messages)
         system_tokens += _count_tokens(user_text) + 4  # reserve for current message
+
+        # Phase 2: tokenize history messages too
         history_msgs = self._build_history_messages(history, system_tokens)
+        if pii_map is not None and not pii_map.is_empty():
+            for msg in history_msgs:
+                if msg.get("content"):
+                    msg["content"] = pii_map.tokenize(msg["content"])
         messages.extend(history_msgs)
         messages.append({"role": "user", "content": user_text})
 
@@ -278,10 +312,16 @@ class LLMService:
 
                     delta = choice.delta
 
-                    # Text content
+                    # Text content — Phase 5: feed through StreamingPiiRestorer
                     if delta and delta.content:
-                        full_text.append(delta.content)
-                        yield LLMChunk(token=delta.content)
+                        raw_chunk = delta.content
+                        if pii_restorer:
+                            out_chunk = pii_restorer.feed(raw_chunk)
+                        else:
+                            out_chunk = raw_chunk
+                        full_text.append(out_chunk)
+                        if out_chunk:
+                            yield LLMChunk(token=out_chunk)
 
                     # Tool calls (accumulated across stream chunks)
                     if delta and delta.tool_calls:
@@ -303,8 +343,28 @@ class LLMService:
                     if usage and getattr(usage, "total_tokens", None) is not None:
                         total_tokens = usage.total_tokens
 
+                # Phase 5: flush restorer tail (partial token at stream end)
+                if pii_restorer:
+                    tail = pii_restorer.flush()
+                    if tail:
+                        full_text.append(tail)
+                        yield LLMChunk(token=tail)
+
                 # If we got text and no tool calls — done
                 if full_text and not tool_calls_acc:
+                    # Phase 13: write audit log entry
+                    try:
+                        from app.services.crypto import write_llm_audit_log
+                        write_llm_audit_log(
+                            actor_id=actor.actor_id,
+                            model=self.settings.openai_model,
+                            prompt_tokens=None,
+                            completion_tokens=total_tokens,
+                            pii_proxy_active=(pii_map is not None),
+                            role=agent_role,
+                        )
+                    except Exception:
+                        pass
                     return LLMResult(
                         text="".join(full_text),
                         usage_tokens=total_tokens,
@@ -337,7 +397,21 @@ class LLMService:
                         except json.JSONDecodeError:
                             args = {}
 
+                        # Phase 4: restore PII in tool args before execution
+                        if pii_map is not None and not pii_map.is_empty():
+                            args = _restore_args(pii_map, args)
+
                         result = tool_executor.execute(tc["name"], args)
+
+                        # Phase 4: extend PiiMap from tool result, tokenize result for LLM
+                        tool_result_for_llm = result.result
+                        if pii_map is not None:
+                            from app.services.pii_proxy import PiiMapService
+                            _pii_svc = PiiMapService()
+                            _pii_svc.extend_from_tool_result(pii_map, tc["name"], result.result)
+                            tool_result_for_llm = pii_map.tokenize(result.result)
+
+                        # Store ORIGINAL result in metadata (БД — РФ, ОК)
                         all_tool_calls_made.append({
                             "name": tc["name"],
                             "args": args,
@@ -356,7 +430,7 @@ class LLMService:
                         messages.append({
                             "role": "tool",
                             "tool_call_id": tc["id"],
-                            "content": result.result,
+                            "content": tool_result_for_llm,  # tokenized for LLM
                         })
 
                     iteration += 1

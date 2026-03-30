@@ -154,8 +154,16 @@ class MemoryService:
         if cached is not None:
             return cached if cached else None
 
+        # PII: tokenize user_text before sending to OpenAI embeddings (152-ФЗ)
+        embed_text = user_text
         try:
-            query_embedding = _embed_query(user_text)
+            from app.services.pii_proxy import tokenize_for_embedding
+            embed_text = tokenize_for_embedding(user_text, actor_id)
+        except Exception:
+            logger.debug("PII tokenization skipped for memory embed", exc_info=True)
+
+        try:
+            query_embedding = _embed_query(embed_text)
         except Exception:
             logger.warning("Failed to embed query for memory retrieval", exc_info=True)
             return None

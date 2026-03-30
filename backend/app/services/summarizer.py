@@ -131,9 +131,47 @@ def summarize_conversation(
     if len(messages) < 4:
         return False
 
-    summary_data = _call_summarize_llm(messages)
+    # Phase 6: PII tokenization — build map for actor before sending to LLM
+    pii_map = None
+    settings = get_settings()
+    if settings.pii_proxy_enabled:
+        try:
+            from app.services.pii_proxy import PiiMapService
+            _svc = PiiMapService()
+            # Load existing map (actor ActorContext not available here, use actor_id directly)
+            pii_map = _svc.load(actor_id)
+        except Exception:
+            logger.debug("PII map load failed in summarizer, proceeding without", exc_info=True)
+
+    # Tokenize messages before sending to LLM
+    if pii_map and not pii_map.is_empty():
+        from dataclasses import replace
+        tokenized_messages = []
+        for m in messages:
+            tok_content = pii_map.tokenize(m.content or "")
+            # Create a copy with tokenized content for LLM call only
+            tokenized_messages.append(type("_M", (), {"role": m.role, "content": tok_content})())
+        summary_data = _call_summarize_llm(tokenized_messages)
+    else:
+        summary_data = _call_summarize_llm(messages)
+
     if not summary_data:
         return False
+
+    # Phase 6: restore PII in summary/facts before saving to DB
+    if pii_map and not pii_map.is_empty():
+        if summary_data.get("summary"):
+            summary_data["summary"] = pii_map.restore(summary_data["summary"])
+        if summary_data.get("title"):
+            summary_data["title"] = pii_map.restore(summary_data["title"])
+        for fact in summary_data.get("facts", []):
+            for key in ("subject", "predicate", "object"):
+                if fact.get(key):
+                    fact[key] = pii_map.restore(fact[key])
+        for pref in summary_data.get("preferences", []):
+            for key in ("subject", "preference"):
+                if pref.get(key):
+                    pref[key] = pii_map.restore(pref[key])
 
     # Batch embed: summary + all facts
     texts_to_embed = [summary_data.get("summary", "")]
@@ -141,6 +179,10 @@ def summarize_conversation(
     for fact in facts:
         fact_text = f"{fact.get('subject', '')} {fact.get('predicate', '')} {fact.get('object', '')}".strip()
         texts_to_embed.append(fact_text)
+
+    # PII: tokenize texts before sending to OpenAI embeddings (152-ФЗ)
+    if pii_map and not pii_map.is_empty():
+        texts_to_embed = [pii_map.tokenize(t) for t in texts_to_embed]
 
     try:
         embeddings = _embed_batch(texts_to_embed)

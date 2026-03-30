@@ -49,6 +49,11 @@ function getStorageKey(agentRole) {
   return `eurika_conversation_id_${agentRole}`
 }
 
+// Background stream tracker — survives component unmount/remount.
+// When ChatPage unmounts mid-stream, the fetch continues so the backend
+// saves the full response. On re-mount, loadConversation awaits this.
+let _bgStream = null // { convId: string, promise: Promise<void> } | null
+
 export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { initialConvId = null } = {}) {
   const [messages, setMessages] = useState([])
   const [conversationId, setConversationId] = useState('')
@@ -112,10 +117,11 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
   const loadConversation = useCallback(async (convId = null, forceNew = false) => {
     if (!auth) return null
 
-    // Abort any in-flight stream
-    if (abortRef.current) {
+    // If switching to a DIFFERENT conversation, abort the in-flight stream
+    if (abortRef.current && convId !== conversationIdRef.current) {
       abortRef.current.abort()
       abortRef.current = null
+      _bgStream = null
     }
 
     setLoading(true)
@@ -128,6 +134,20 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
     if (forceNew) {
       setEscalated(false)
       setEscalationReason('')
+    }
+
+    // If re-loading the SAME conversation with an active background stream
+    // (user navigated away and came back), wait for it to finish
+    if (_bgStream && _bgStream.convId === convId) {
+      try {
+        await Promise.race([
+          _bgStream.promise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('bg_timeout')), 30_000)),
+        ])
+      } catch {
+        // Timed out — proceed with partial data
+      }
+      _bgStream = null
     }
 
     try {
@@ -219,13 +239,10 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
   useEffect(() => { typingRef.current = typing }, [typing])
   useEffect(() => { escalatedRef.current = escalated }, [escalated])
 
-  // Cleanup abort controller and status timer on unmount
+  // Cleanup on unmount — do NOT abort active stream (let it finish in background
+  // so the backend saves the full response; setState calls become harmless no-ops)
   useEffect(() => {
     return () => {
-      if (abortRef.current) {
-        abortRef.current.abort()
-        abortRef.current = null
-      }
       if (statusTimerRef.current) {
         clearTimeout(statusTimerRef.current)
         statusTimerRef.current = null
@@ -352,6 +369,10 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
 
     const controller = new AbortController()
     abortRef.current = controller
+
+    // Track stream at module level so it survives unmount
+    let resolveBg
+    _bgStream = { convId: currentConvId, promise: new Promise((r) => { resolveBg = r }) }
 
     const storageKey = getStorageKey(agentRole)
 
@@ -501,6 +522,8 @@ export function useChat(auth, agentRole = 'sales', onboardingComplete = true, { 
       clearTimeout(warmingTimer)
       clearTimeout(warmingTimer2)
       abortRef.current = null
+      if (resolveBg) resolveBg()
+      if (_bgStream?.convId === currentConvId) _bgStream = null
     }
   }, [auth, agentRole])
 

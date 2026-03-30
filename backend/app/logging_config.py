@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextvars
 import json
 import logging
+import re
 import time
 from contextlib import contextmanager
 
@@ -43,6 +44,36 @@ class ContextFilter(logging.Filter):
         ctx = request_ctx.get()
         for field in _CTX_FIELDS:
             setattr(record, field, ctx.get(field, "-"))
+        return True
+
+
+class MaskingFilter(logging.Filter):
+    """Defence-in-depth: mask phone numbers and emails in production logs."""
+
+    _PHONE_RE = re.compile(
+        r"(?<!\d)(\+?[78])[\s(-]*\d{3}[\s)-]*\d{3}[\s-]*(\d{2})[\s-]*(\d{2})(?!\d)"
+    )
+    _EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
+
+    def _mask(self, text: str) -> str:
+        text = self._PHONE_RE.sub(r"\1***\3", text)
+        text = self._EMAIL_RE.sub("***@***", text)
+        return text
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = self._mask(record.msg)
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {
+                    k: self._mask(str(v)) if isinstance(v, str) else v
+                    for k, v in record.args.items()
+                }
+            elif isinstance(record.args, tuple):
+                record.args = tuple(
+                    self._mask(a) if isinstance(a, str) else a
+                    for a in record.args
+                )
         return True
 
 
@@ -97,6 +128,7 @@ def setup_logging(app_env: str = "development") -> None:
 
     if app_env == "production":
         handler.setFormatter(JsonFormatter())
+        handler.addFilter(MaskingFilter())
         root.setLevel(logging.INFO)
     else:
         handler.setFormatter(DevFormatter())

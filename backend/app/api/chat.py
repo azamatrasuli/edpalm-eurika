@@ -934,6 +934,8 @@ async def chat_transcribe(
     auth_json: str = Form(...),
 ) -> dict:
     """Accept audio, transcribe via Whisper, return text (no LLM call)."""
+    if not get_settings().stt_enabled:
+        return error_response("stt_disabled")
     # Validate auth before consuming Whisper credits
     auth = AuthPayload.model_validate_json(auth_json)
     actor = auth_service.resolve(auth)
@@ -953,6 +955,8 @@ async def chat_transcribe(
 @router.post("/chat/tts")
 async def chat_tts(request: Request) -> StreamingResponse:
     """Synthesize assistant text to speech using OpenAI TTS API."""
+    if not get_settings().tts_enabled:
+        return error_response("tts_disabled")
     body = await request.json()
 
     auth = AuthPayload.model_validate(body.get("auth", {}))
@@ -986,6 +990,8 @@ async def chat_voice(
     agent_role: str = Form(default="sales"),
 ) -> StreamingResponse:
     """Accept voice message, transcribe via Whisper, then stream LLM response."""
+    if not get_settings().stt_enabled:
+        return error_response("stt_disabled")
     ext = (audio.filename or "audio.webm").rsplit(".", 1)[-1].lower()
     if ext not in ALLOWED_FORMATS:
         return error_response("audio_format")
@@ -1010,6 +1016,13 @@ async def chat_voice(
         _make_stream(transcript, actor, ctx, transcript=transcript),
         media_type="text/event-stream",
     )
+
+
+@router.get("/chat/capabilities")
+async def chat_capabilities() -> dict:
+    """Return feature flags for the chat client (no auth required)."""
+    settings = get_settings()
+    return {"stt_enabled": settings.stt_enabled, "tts_enabled": settings.tts_enabled}
 
 
 @router.get("/amocrm/oauth/callback")
@@ -1068,7 +1081,7 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
         message = inner.get("message", {})
         text = message.get("text", "")
         msgid = inner.get("msgid", "")
-        logger.info("Webhook v1: conv=%s sender=%s text=%s", conversation_id, sender_name, text[:80])
+        logger.info("Webhook v1: conv=%s text_len=%d", conversation_id, len(text))
 
     elif "message" in payload and not event_type:
         # V2 format: {"account_id": "...", "time": ..., "message": {...}}
@@ -1085,8 +1098,8 @@ async def _process_chat_webhook(request: Request, scope_id: str | None = None):
         # V2 may have receiver.client_id as fallback for finding actor
         receiver_client_id = msg_wrapper.get("receiver", {}).get("client_id", "")
         logger.info(
-            "Webhook v2: conv=%s sender_id=%s receiver_client=%s text=%s",
-            conversation_id, sender_id, receiver_client_id, text[:80],
+            "Webhook v2: conv=%s sender_id=%s text_len=%d",
+            conversation_id, sender_id, len(text),
         )
     else:
         logger.info("amoCRM webhook: unrecognized format, keys=%s", list(payload.keys()))

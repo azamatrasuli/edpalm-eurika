@@ -40,5 +40,9 @@ class PortalAuth:
             actor_id=f"portal:{user_id}",
             display_name=payload.get("name"),
             phone=payload.get("phone"),
-            metadata={"raw_claims": {k: v for k, v in payload.items() if k not in {"exp"}}},
+            metadata={
+                "raw_claims": {k: v for k, v in payload.items() if k not in {"exp"}},
+                "is_minor": payload.get("is_minor"),
+                "birth_date": payload.get("birth_date"),
+            },
         )

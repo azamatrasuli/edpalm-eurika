@@ -76,7 +76,7 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
           const isPayment = message.type === 'payment'
           const shouldAnimate = !message.fromHistory
 
-          const showTTS = onTTSPlay && message.role === 'assistant' && message.content && !isSpecial
+          const showTTS = false // TTS disabled (152-ФЗ compliance)
 
           return (
             <div
@@ -182,6 +182,13 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* AI disclaimer — scrolls with chat */}
+      {messages.length > 0 && (
+        <div className="text-center text-[11px] leading-tight px-4 pt-3 pb-1" style={{ color: '#6d7487' }}>
+          Эврика — ИИ-ассистент. Ответы могут содержать неточности.
         </div>
       )}
 

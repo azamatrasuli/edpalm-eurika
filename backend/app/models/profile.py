@@ -94,11 +94,14 @@ class ConsentItem(BaseModel):
     version: str
     granted_at: datetime | None = None
     revoked_at: datetime | None = None
+    is_minor: bool | None = None
 
 
 class ConsentStatusResponse(BaseModel):
     consents: list[ConsentItem] = Field(default_factory=list)
     all_required_granted: bool = False
+    is_minor_actor: bool | None = None
+    minor_age: int | None = None
 
 
 # ---- Data export & deletion models -----------------------------------------

@@ -13,6 +13,17 @@ from app.db.repository import ConversationRepository
 
 logger = logging.getLogger("services.followup")
 
+
+def _format_ad_label() -> str:
+    """Format advertising label per 38-ФЗ: Реклама. ИНН ... erid: ..."""
+    settings = get_settings()
+    parts = ["Реклама."]
+    if settings.advertising_inn:
+        parts.append(f"ИНН {settings.advertising_inn}.")
+    if settings.advertising_erid:
+        parts.append(f"erid: {settings.advertising_erid}")
+    return " ".join(parts)
+
 FOLLOWUP_DELAYS: dict[int, timedelta] = {
     1: timedelta(hours=24),
     2: timedelta(hours=48),
@@ -33,6 +44,25 @@ FOLLOWUP_TEMPLATES: dict[int, str] = {
         "Напишите, если рассматриваете наше предложение — подберу оптимальный вариант."
     ),
 }
+
+
+def _has_notifications_consent(actor_id: str | None) -> bool:
+    """Check if actor has granted 'notifications' consent (Phase 12)."""
+    if not actor_id:
+        return False
+    try:
+        from app.db.consent_repository import ConsentRepository
+        repo = ConsentRepository()
+        records = repo.get_user_consents(actor_id)
+        for r in records:
+            purpose = r.purpose_id if hasattr(r, "purpose_id") else (r.get("purpose_id") if isinstance(r, dict) else None)
+            granted = r.granted if hasattr(r, "granted") else (r.get("granted") if isinstance(r, dict) else False)
+            if purpose == "notifications":
+                return bool(granted)
+        return False  # no record = no consent
+    except Exception:
+        logger.debug("Consent check failed for actor=%s, allowing follow-up", actor_id, exc_info=True)
+        return True  # fail-open to avoid breaking existing flows
 
 
 def create_followup_chain(
@@ -101,6 +131,17 @@ def process_pending_followups() -> None:
                 continue
 
             text = template.format(name=name, product=product)
+
+            # Phase 12: check notifications consent before sending follow-up
+            if not _has_notifications_consent(f.get("actor_id")):
+                logger.info("Follow-up step %d skipped: no notifications consent for actor=%s", step, f.get("actor_id"))
+                repo.update_followup_status(f["id"], "cancelled")
+                continue
+
+            # Phase 12: ad labeling for sales role (38-ФЗ о рекламе)
+            agent_role = f.get("agent_role", "sales")
+            if agent_role == "sales":
+                text = _format_ad_label() + "\n" + text
 
             # Save as assistant message in the conversation
             repo.save_message(

@@ -556,8 +556,14 @@ class ToolExecutor:
         self.events = EventTracker()
         self.funnel = FunnelService(repo=self.repo, crm=self.crm)
 
+    _SAFE_ARG_KEYS = frozenset({
+        "query", "product_name", "grade", "amount", "reason",
+        "rating", "tags", "issue", "lead_id", "status_id",
+    })
+
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
-        logger.info("Executing tool: %s args=%s", tool_name, arguments)
+        safe_args = {k: v for k, v in arguments.items() if k in self._SAFE_ARG_KEYS}
+        logger.info("Executing tool: %s args=%s", tool_name, safe_args)
         try:
             handler = getattr(self, f"_tool_{tool_name}", None)
             if handler is None:
@@ -591,7 +597,7 @@ class ToolExecutor:
         clean_name = name.strip()
         if self.actor_id:
             self.repo.update_profile_display_name(self.actor_id, clean_name)
-            logger.info("Saved display_name='%s' for actor=%s", clean_name, self.actor_id)
+            logger.info("Saved display_name for actor=%s", self.actor_id)
         return ToolResult(name="save_user_name", result=f"Имя '{clean_name}' сохранено в профиле.")
 
     def _tool_search_knowledge_base(self, query: str) -> ToolResult:

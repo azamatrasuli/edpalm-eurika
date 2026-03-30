@@ -210,7 +210,7 @@ class AmoCRMChatClient:
         }
 
         path = f"/v2/origin/custom/{scope_id}/chats"
-        logger.info("[create_chat] POST %s conv=%s user=%s phone=%s", path, conversation_id, user_id, phone)
+        logger.info("[create_chat] POST %s conv=%s user=%s", path, conversation_id, user_id)
         result = self._signed_request("POST", path, payload)
         if result:
             logger.info("[create_chat] OK: %s", result)
@@ -234,8 +234,8 @@ class AmoCRMChatClient:
         receiver_phone: str | None = None,
     ) -> ChatSendResult:
         logger.info(
-            "[send_message] conv=%s sender=%s is_bot=%s text=%s",
-            conversation_id, sender_id, is_bot, text[:80],
+            "[send_message] conv=%s sender=%s is_bot=%s text_len=%d",
+            conversation_id, sender_id, is_bot, len(text),
         )
 
         if not self.is_configured():

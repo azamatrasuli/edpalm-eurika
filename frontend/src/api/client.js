@@ -189,14 +189,15 @@ export async function transcribeAudio(audioBlob, auth) {
   return (await response.json()).transcript
 }
 
-export async function synthesizeSpeech(text, auth) {
-  const response = await safeFetch(`${API_BASE_URL}/api/v1/chat/tts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ auth, text }),
-  })
-  if (!response.ok) await throwApiError(response)
-  return response.blob()
+
+export async function fetchCapabilities() {
+  try {
+    const response = await safeFetch(`${API_BASE_URL}/api/v1/chat/capabilities`)
+    if (!response.ok) return { stt_enabled: false, tts_enabled: false }
+    return response.json()
+  } catch {
+    return { stt_enabled: false, tts_enabled: false }
+  }
 }
 
 export async function checkProfile(auth) {

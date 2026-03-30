@@ -12,7 +12,7 @@ from app.db.pool import get_connection, has_pool
 
 logger = logging.getLogger("data_lifecycle")
 
-DELETION_GRACE_DAYS = 14
+DELETION_GRACE_DAYS = 30  # 152-ФЗ: 30 дней grace period
 
 # Tables to delete from, in order (respects FK constraints)
 _DELETION_CASCADE = [
@@ -23,6 +23,7 @@ _DELETION_CASCADE = [
     ("agent_contact_mapping", "actor_id = %s"),
     ("agent_chat_mapping", "actor_id = %s"),
     ("agent_consent_records", "actor_id = %s"),
+    ("agent_pii_maps", "actor_id = %s"),
     ("agent_user_profiles", "actor_id = %s"),
     ("agent_followup_chain", "conversation_id IN (SELECT id FROM conversations WHERE actor_id = %s)"),
     ("agent_payment_orders", "actor_id = %s"),

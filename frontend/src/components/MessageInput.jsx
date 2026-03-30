@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { MESSAGE_MAX_LENGTH, transcribeAudio } from '../api/client'
 import { VoiceRecorder } from './VoiceRecorder'
 
-export function MessageInput({ disabled, onSend, auth, onTypingStart, isManagerView = false }) {
+export function MessageInput({ disabled, onSend, auth, onTypingStart, isManagerView = false, sttEnabled = false }) {
   const [text, setText] = useState('')
   const [voiceMode, setVoiceMode] = useState('idle') // 'idle' | 'recording' | 'transcribing'
   const [micError, setMicError] = useState('')
@@ -118,20 +118,22 @@ export function MessageInput({ disabled, onSend, auth, onTypingStart, isManagerV
           disabled={disabled}
         />
         <div className="flex gap-1 shrink-0 items-end">
-          <button
-            className="w-9 h-9 p-0 flex items-center justify-center rounded-full border-none cursor-pointer shrink-0 transition-[background,color,transform] duration-150 ease-in-out disabled:opacity-30 disabled:cursor-default bg-inset text-fg-muted hover:bg-voice-hover hover:text-fg"
-            onClick={startRecording}
-            disabled={disabled}
-            title="Голосовое сообщение"
-            type="button"
-          >
-            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="9" y="1" width="6" height="12" rx="3" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-              <line x1="8" y1="23" x2="16" y2="23" />
-            </svg>
-          </button>
+          {sttEnabled && (
+            <button
+              className="w-9 h-9 p-0 flex items-center justify-center rounded-full border-none cursor-pointer shrink-0 transition-[background,color,transform] duration-150 ease-in-out disabled:opacity-30 disabled:cursor-default bg-inset text-fg-muted hover:bg-voice-hover hover:text-fg"
+              onClick={startRecording}
+              disabled={disabled}
+              title="Голосовое сообщение"
+              type="button"
+            >
+              <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="1" width="6" height="12" rx="3" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </button>
+          )}
           <button
             className="w-9 h-9 p-0 flex items-center justify-center border-none rounded-full bg-brand text-white cursor-pointer shrink-0 shadow-sm transition-[background,transform,opacity] duration-150 ease-in-out hover:bg-brand-hover hover:scale-[1.03] active:scale-95 disabled:opacity-30 disabled:cursor-default"
             onClick={submit}

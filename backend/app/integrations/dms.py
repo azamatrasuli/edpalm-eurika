@@ -238,7 +238,7 @@ class MockDMSService(DMSServiceBase):
     }
 
     def search_contact_by_phone(self, phone: str) -> DMSSearchResult | None:
-        logger.info("MockDMS: search_contact_by_phone(%s)", phone)
+        logger.info("MockDMS: search_contact_by_phone(***)")
         result = self.MOCK_DATA.get(phone)
         if result:
             logger.info(
@@ -247,7 +247,7 @@ class MockDMSService(DMSServiceBase):
                 len(result.students),
             )
         else:
-            logger.info("MockDMS: no contact found for phone=%s", phone)
+            logger.info("MockDMS: no contact found")
         return result
 
     def get_student_info(self, student_id: int) -> DMSStudent | None:
@@ -398,13 +398,13 @@ class RealDMSService(DMSServiceBase):
 
             item = None
             for q in queries:
-                logger.info("DMS: searching contact by q=%s", q)
+                logger.info("DMS: searching contact...")
                 item = self._search_contact_raw(q)
                 if item:
                     break
 
             if not item:
-                logger.info("DMS: no contact found for phone=%s", phone)
+                logger.info("DMS: no contact found")
                 return None
 
             contact = DMSContact(
@@ -415,7 +415,7 @@ class RealDMSService(DMSServiceBase):
                 phone=item.get("phone"),
                 email=item.get("email"),
             )
-            logger.info("DMS: found contact_id=%d (%s %s)", contact.contact_id, contact.surname, contact.name)
+            logger.info("DMS: found contact_id=%d", contact.contact_id)
 
             # Fetch students for this contact
             students = self.get_students_by_contact(contact.contact_id)
@@ -555,7 +555,7 @@ class RealDMSService(DMSServiceBase):
                     },
                 }],
             }
-            logger.info("DMS create_order payload: %s", payload)
+            logger.info("DMS create_order contact_id=%d product=%s", payer.contact_id, product.uuid)
             resp = self._request("POST", "/v1/api/orders", json=payload)
             if resp is None or resp.status_code not in (200, 201):
                 logger.error("DMS create_order failed: %d %s", resp.status_code, resp.text)

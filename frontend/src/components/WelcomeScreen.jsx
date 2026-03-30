@@ -14,7 +14,7 @@ export function WelcomeScreen({ subtitle, avatarProps, error }) {
         Эврика
       </h1>
       <p className="text-[15px] text-fg-muted max-w-[400px] leading-relaxed mb-8 opacity-0 animate-[welcome-slide-in_0.5s_0.35s_ease_forwards]">
-        {subtitle || 'Виртуальный менеджер EdPalm. Помогу подобрать обучение и отвечу по программам.'}
+        {subtitle || 'ИИ-ассистент EdPalm. Помогу подобрать обучение и отвечу по программам.'}
       </p>
       {error ? (
         <div className="px-4 py-3 rounded-xl bg-error-bg text-error border border-error-border text-sm leading-normal max-w-sm opacity-0 animate-[welcome-slide-in_0.5s_0.45s_ease_forwards]">

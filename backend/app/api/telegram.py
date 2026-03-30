@@ -45,7 +45,7 @@ async def telegram_webhook(token: str, request: Request):
     first_name = message.get("from", {}).get("first_name", "")
 
     if text.startswith("/start"):
-        logger.info("[telegram] /start from chat_id=%s name=%s", chat_id, first_name)
+        logger.info("[telegram] /start from chat_id=%s", chat_id)
         greeting = first_name or "друг"
         _send_message(
             settings.telegram_bot_token,

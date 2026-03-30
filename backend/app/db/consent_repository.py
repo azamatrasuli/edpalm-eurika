@@ -31,6 +31,7 @@ class ConsentRecord:
     version: str
     granted_at: datetime | None = None
     revoked_at: datetime | None = None
+    is_minor: bool | None = None
 
 
 class ConsentRepository:
@@ -76,7 +77,7 @@ class ConsentRepository:
                         SELECT p.id AS purpose_id, p.title_ru, p.description, p.required,
                                COALESCE(r.granted, FALSE) AS granted,
                                COALESCE(r.version, p.version) AS version,
-                               r.granted_at, r.revoked_at
+                               r.granted_at, r.revoked_at, r.is_minor
                         FROM agent_consent_purposes p
                         LEFT JOIN agent_consent_records r
                           ON r.purpose_id = p.id AND r.actor_id = %s
@@ -94,6 +95,7 @@ class ConsentRepository:
                             version=r["version"],
                             granted_at=r.get("granted_at"),
                             revoked_at=r.get("revoked_at"),
+                            is_minor=r.get("is_minor"),
                         )
                         for r in cur.fetchall()
                     ]
@@ -128,6 +130,7 @@ class ConsentRepository:
         method: str = "settings",
         ip_address: str | None = None,
         user_agent: str | None = None,
+        is_minor: bool | None = None,
     ) -> bool:
         """Grant consent — upsert record + append audit log."""
         if not self._has_db():
@@ -141,8 +144,8 @@ class ConsentRepository:
                     cur.execute(
                         """
                         INSERT INTO agent_consent_records
-                          (actor_id, purpose_id, granted, version, granted_at, method, ip_address, user_agent)
-                        VALUES (%s, %s, TRUE, %s, NOW(), %s, %s, %s)
+                          (actor_id, purpose_id, granted, version, granted_at, method, ip_address, user_agent, is_minor)
+                        VALUES (%s, %s, TRUE, %s, NOW(), %s, %s, %s, %s)
                         ON CONFLICT (actor_id, purpose_id) DO UPDATE SET
                           granted = TRUE,
                           version = EXCLUDED.version,
@@ -150,18 +153,19 @@ class ConsentRepository:
                           revoked_at = NULL,
                           method = EXCLUDED.method,
                           ip_address = EXCLUDED.ip_address,
-                          user_agent = EXCLUDED.user_agent
+                          user_agent = EXCLUDED.user_agent,
+                          is_minor = EXCLUDED.is_minor
                         """,
-                        [actor_id, purpose_id, version, method, ip_address, user_agent],
+                        [actor_id, purpose_id, version, method, ip_address, user_agent, is_minor],
                     )
                     # Append-only audit
                     cur.execute(
                         """
                         INSERT INTO agent_consent_audit_log
-                          (actor_id, purpose_id, action, version, method, ip_address, user_agent)
-                        VALUES (%s, %s, 'grant', %s, %s, %s, %s)
+                          (actor_id, purpose_id, action, version, method, ip_address, user_agent, is_minor)
+                        VALUES (%s, %s, 'grant', %s, %s, %s, %s, %s)
                         """,
-                        [actor_id, purpose_id, version, method, ip_address, user_agent],
+                        [actor_id, purpose_id, version, method, ip_address, user_agent, is_minor],
                     )
                 conn.commit()
                 logger.info("Consent granted: actor=%s purpose=%s", actor_id, purpose_id)
@@ -177,6 +181,7 @@ class ConsentRepository:
         method: str = "settings",
         ip_address: str | None = None,
         user_agent: str | None = None,
+        is_minor: bool | None = None,
     ) -> bool:
         """Revoke consent — update record + append audit + trigger side effects."""
         if not self._has_db():
@@ -206,10 +211,10 @@ class ConsentRepository:
                     cur.execute(
                         """
                         INSERT INTO agent_consent_audit_log
-                          (actor_id, purpose_id, action, version, method, ip_address, user_agent)
-                        VALUES (%s, %s, 'revoke', %s, %s, %s, %s)
+                          (actor_id, purpose_id, action, version, method, ip_address, user_agent, is_minor)
+                        VALUES (%s, %s, 'revoke', %s, %s, %s, %s, %s)
                         """,
-                        [actor_id, purpose_id, version, method, ip_address, user_agent],
+                        [actor_id, purpose_id, version, method, ip_address, user_agent, is_minor],
                     )
                 conn.commit()
 

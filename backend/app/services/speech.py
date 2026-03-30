@@ -31,6 +31,10 @@ class SpeechService:
 
         Returns transcribed text or None if service unavailable.
         """
+        if not self.settings.stt_enabled:
+            logger.info("STT disabled by configuration (STT_ENABLED=false)")
+            return None
+
         if not self.client:
             return None
 
@@ -66,6 +70,10 @@ class SpeechService:
         model: str | None = None,
     ) -> bytes | None:
         """Synthesize text to speech. Returns MP3 bytes or None."""
+        if not self.settings.tts_enabled:
+            logger.info("TTS disabled by configuration (TTS_ENABLED=false)")
+            return None
+
         if not self.client:
             return None
 
@@ -101,6 +109,10 @@ class SpeechService:
         model: str | None = None,
     ) -> Iterator[bytes]:
         """Yield MP3 audio chunks for streaming playback."""
+        if not self.settings.tts_enabled:
+            logger.info("TTS streaming disabled by configuration (TTS_ENABLED=false)")
+            return
+
         if not self.client:
             return
 

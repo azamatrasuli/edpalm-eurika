@@ -86,7 +86,7 @@ export function SupervisorPage() {
   return (
     <div className="flex h-dvh bg-[#0d1117] text-white">
       {/* Left: Conversation List */}
-      <div className="w-[380px] border-r border-gray-800 flex flex-col shrink-0">
+      <div className={`border-r border-gray-800 flex flex-col shrink-0 ${selectedConv ? 'hidden lg:flex lg:w-[380px]' : 'w-full lg:w-[380px]'}`}>
         <div className="p-4 border-b border-gray-800">
           <h1 className="text-lg font-bold mb-3">Supervisor</h1>
           <div className="flex gap-2 text-xs">
@@ -139,7 +139,7 @@ export function SupervisorPage() {
       </div>
 
       {/* Right: Conversation Detail */}
-      <div className="flex-1 flex flex-col">
+      <div className={`flex-1 flex flex-col ${!selectedConv ? 'hidden lg:flex' : ''}`}>
         {!selectedConv ? (
           <div className="flex-1 flex items-center justify-center text-gray-500">
             Выберите разговор слева
@@ -147,6 +147,7 @@ export function SupervisorPage() {
         ) : (
           <>
             <div className="p-4 border-b border-gray-800 flex items-center gap-3">
+              <button onClick={() => setSelectedConv(null)} className="lg:hidden text-gray-400 hover:text-white text-sm mr-1">← </button>
               <div>
                 <div className="font-medium">{selectedConv.display_name || selectedConv.actor_id}</div>
                 <div className="text-xs text-gray-400">

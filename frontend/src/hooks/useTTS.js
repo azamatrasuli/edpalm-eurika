@@ -1,41 +1,52 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { synthesizeSpeech } from '../api/client'
 
 /**
- * Hook for text-to-speech playback on assistant messages.
+ * Hook for text-to-speech playback using browser-native Web Speech API.
  *
  * Returns:
  *   play(messageId, text) — start/pause/resume
  *   stop()               — stop and reset
  *   playingId            — id of the message currently playing (or null)
  *   ttsState             — 'idle' | 'loading' | 'playing' | 'paused'
+ *   supported            — boolean: is speechSynthesis available at all
+ *
+ * NOTE: Chrome may pause utterances longer than ~15 seconds.
+ * A periodic pause/resume workaround can be added in a follow-up.
  */
-export function useTTS(auth, { onError } = {}) {
+export function useTTS(_auth, { onError } = {}) {
   const [playingId, setPlayingId] = useState(null)
   const [ttsState, setTtsState] = useState('idle')
-  const audioRef = useRef(null)
-  const cacheRef = useRef(new Map())
+  const [supported, setSupported] = useState(false)
+  const utteranceRef = useRef(null)
+
+  useEffect(() => {
+    setSupported(typeof window !== 'undefined' && 'speechSynthesis' in window)
+  }, [])
 
   const stop = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-      audioRef.current = null
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
     }
+    utteranceRef.current = null
     setPlayingId(null)
     setTtsState('idle')
   }, [])
 
-  const play = useCallback(async (messageId, text) => {
+  const play = useCallback((messageId, text) => {
+    if (!window.speechSynthesis) {
+      onError?.('Браузер не поддерживает озвучивание текста')
+      return
+    }
+
     // Toggle pause/resume for the same message
-    if (playingId === messageId && audioRef.current) {
+    if (playingId === messageId) {
       if (ttsState === 'playing') {
-        audioRef.current.pause()
+        window.speechSynthesis.pause()
         setTtsState('paused')
         return
       }
       if (ttsState === 'paused') {
-        audioRef.current.play()
+        window.speechSynthesis.resume()
         setTtsState('playing')
         return
       }
@@ -47,53 +58,41 @@ export function useTTS(auth, { onError } = {}) {
     setPlayingId(messageId)
     setTtsState('loading')
 
-    try {
-      // Use cached blob URL if available
-      let blobUrl = cacheRef.current.get(messageId)
-      if (!blobUrl) {
-        const blob = await synthesizeSpeech(text, auth)
-        blobUrl = URL.createObjectURL(blob)
-        // Evict oldest entry if cache exceeds 30 items
-        if (cacheRef.current.size >= 30) {
-          const oldest = cacheRef.current.keys().next().value
-          URL.revokeObjectURL(cacheRef.current.get(oldest))
-          cacheRef.current.delete(oldest)
-        }
-        cacheRef.current.set(messageId, blobUrl)
-      }
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'ru-RU'
+    utterance.rate = 1.0
 
-      const audio = new Audio(blobUrl)
-      audioRef.current = audio
+    // Try to pick a Russian voice if available
+    const voices = window.speechSynthesis.getVoices()
+    const ruVoice = voices.find((v) => v.lang.startsWith('ru'))
+    if (ruVoice) utterance.voice = ruVoice
 
-      audio.onended = () => {
-        setPlayingId(null)
-        setTtsState('idle')
-        audioRef.current = null
-      }
-
-      audio.onerror = () => {
-        setPlayingId(null)
-        setTtsState('idle')
-        audioRef.current = null
-      }
-
-      await audio.play()
-      setTtsState('playing')
-    } catch {
+    utterance.onstart = () => setTtsState('playing')
+    utterance.onend = () => {
+      utteranceRef.current = null
       setPlayingId(null)
       setTtsState('idle')
-      onError?.('Не удалось воспроизвести голос. Попробуйте ещё раз')
     }
-  }, [auth, playingId, ttsState, stop])
+    utterance.onerror = (e) => {
+      if (e.error === 'canceled') return
+      utteranceRef.current = null
+      setPlayingId(null)
+      setTtsState('idle')
+      onError?.('Не удалось озвучить текст')
+    }
 
-  // Cleanup blob URLs on unmount to prevent memory leaks
+    utteranceRef.current = utterance
+    window.speechSynthesis.speak(utterance)
+  }, [playingId, ttsState, stop, onError])
+
+  // Cleanup on unmount
   useEffect(() => {
-    const cache = cacheRef.current
     return () => {
-      cache.forEach((url) => URL.revokeObjectURL(url))
-      cache.clear()
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
     }
   }, [])
 
-  return { play, stop, playingId, ttsState }
+  return { play, stop, playingId, ttsState, supported }
 }

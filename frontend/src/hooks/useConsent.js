@@ -18,6 +18,8 @@ export function useConsent(auth) {
   const [consentNeeded, setConsentNeeded] = useState(false)
   const [consentChecking, setConsentChecking] = useState(true)
   const [acceptLoading, setAcceptLoading] = useState(false)
+  const [isMinor, setIsMinor] = useState(false)
+  const [minorAge, setMinorAge] = useState(null)
   const initRef = useRef(false)
 
   // Check consent on mount
@@ -39,6 +41,12 @@ export function useConsent(auth) {
     ;(async () => {
       try {
         const data = await fetchConsentStatus(auth)
+        if (data.is_minor_actor != null) {
+          setIsMinor(data.is_minor_actor)
+        }
+        if (data.minor_age != null) {
+          setMinorAge(data.minor_age)
+        }
         if (data.all_required_granted) {
           setConsentReady(true)
           try { sessionStorage.setItem(CACHE_KEY, 'true') } catch {}
@@ -81,5 +89,7 @@ export function useConsent(auth) {
     consentChecking,
     acceptConsents,
     acceptLoading,
+    isMinor,
+    minorAge,
   }
 }

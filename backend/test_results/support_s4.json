@@ -1,0 +1,1047 @@
+[
+  {
+    "scenario_id": 1,
+    "name": "KB: platform login",
+    "notes": "Клиент не может войти в ЛК",
+    "status": "FAIL",
+    "conversation_id": "e202b487-8139-4202-bbef-08cd11f9fc95",
+    "valid_turns": 0,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])",
+      "Expected tag 'platform' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Не могу войти в личный кабинет, что делать?",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 135
+  },
+  {
+    "scenario_id": 2,
+    "name": "KB: document upload",
+    "notes": "Вопрос про загрузку документов",
+    "status": "FAIL",
+    "conversation_id": "e2b34fb4-9c17-4b7d-b759-151739396894",
+    "valid_turns": 0,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])",
+      "Expected tag 'documents' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Как загрузить документы в личный кабинет?",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 128
+  },
+  {
+    "scenario_id": 3,
+    "name": "KB: attestation timing",
+    "notes": "Вопрос про сроки аттестации",
+    "status": "FAIL",
+    "conversation_id": "8a0bf97f-818b-46ee-9e75-3ea83d7ea7ed",
+    "valid_turns": 0,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])",
+      "Expected tag 'attestation' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Когда нужно сдать промежуточную аттестацию?",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 124
+  },
+  {
+    "scenario_id": 4,
+    "name": "KB: payment status",
+    "notes": "Вопрос про статус оплаты",
+    "status": "FAIL",
+    "conversation_id": "14c54dfd-fb33-42ba-939f-b8862af8d6b2",
+    "valid_turns": 0,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])",
+      "Expected tag 'payment' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Я оплатила, но статус не обновился. Что делать?",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 127
+  },
+  {
+    "scenario_id": 5,
+    "name": "KB: OGE deadline",
+    "notes": "ГИА вопрос",
+    "status": "FAIL",
+    "conversation_id": "5af840a5-8732-4fd5-a0f3-2eede8d67de9",
+    "valid_turns": 0,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])",
+      "Expected tag 'gia' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Нам скоро ОГЭ, какие документы нужны для допуска?",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 124
+  },
+  {
+    "scenario_id": 6,
+    "name": "KB: onboarding steps",
+    "notes": "Вопрос сразу после покупки",
+    "status": "FAIL",
+    "conversation_id": "3cb867ef-192c-48f0-a0cf-9ed59d59d473",
+    "valid_turns": 0,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])",
+      "Expected tag 'onboarding' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Добрый день! Только что купила программу, что мне теперь делать?",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 124
+  },
+  {
+    "scenario_id": 7,
+    "name": "KB: schedule query",
+    "notes": "Вопрос про расписание уроков",
+    "status": "FAIL",
+    "conversation_id": "5b9aa364-e3f1-4d68-8b64-3ff2e90c98cc",
+    "valid_turns": 0,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])",
+      "Expected tag 'schedule' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Когда занятия для 5 класса?",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 127
+  },
+  {
+    "scenario_id": 8,
+    "name": "KB: tech error",
+    "notes": "Техническая ошибка на платформе",
+    "status": "FAIL",
+    "conversation_id": "a7b0cd0f-c374-4d98-91a1-835feff6522f",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "search_knowledge_base"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tag 'technical' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Ошибка при открытии урока, приложение зависло",
+        "agent": "Понимаю, как это может быть неприятно. Давайте попробуем решить проблему. Попробуйте следующие шаги:\n\n1. Перезагрузите устройство и попробуйте открыть приложение снова.\n2. Убедитесь, что у вас установлена последняя версия приложения.\n3. Проверьте подключение к интернету.\n\nЕсли проблема не решится, я могу создать обращение в нашу техническую поддержку, чтобы они помогли вам более детально. Хотите, чтобы я это сделала?",
+        "tools": [
+          "search_knowledge_base"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 26
+  },
+  {
+    "scenario_id": 9,
+    "name": "NPS flow: 5 stars",
+    "notes": "Полный сценарий с оценкой в конце",
+    "status": "FAIL",
+    "conversation_id": "bf703e2a-cd80-4482-b324-05e6eb4434a9",
+    "valid_turns": 3,
+    "total_turns": 3,
+    "all_tools": [
+      "search_knowledge_base",
+      "escalate_to_manager",
+      "collect_nps"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected NPS rating in DB, got none"
+    ],
+    "turns": [
+      {
+        "user": "Как загрузить справку об обучении?",
+        "agent": "К сожалению, я не нашла информацию о том, как загрузить справку об обучении. Давайте я подключу специалиста, который сможет помочь с этим вопросом.Я передала ваш вопрос специалисту, и он свяжется с вами в ближайшее время, чтобы помочь. Если у вас есть ещё вопросы, пожалуйста, дайте знать!",
+        "tools": [
+          "search_knowledge_base",
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Не найдена информация о загрузке справки об обучении",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      },
+      {
+        "user": "Спасибо, нашла!",
+        "agent": "Отлично, рада, что всё получилось! Если появятся ещё вопросы или нужна будет помощь, всегда обращайтесь. Хорошего дня! 😊",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "5",
+        "agent": "Спасибо за высокую оценку! Если будут ещё вопросы или нужна помощь, всегда рада помочь. Хорошего дня! 😊",
+        "tools": [
+          "collect_nps"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 60
+  },
+  {
+    "scenario_id": 10,
+    "name": "NPS flow: 3 stars + comment",
+    "notes": "Оценка 3 с комментарием",
+    "status": "FAIL",
+    "conversation_id": "857e823c-7202-47dd-be38-49a18157361f",
+    "valid_turns": 3,
+    "total_turns": 3,
+    "all_tools": [
+      "search_knowledge_base",
+      "collect_nps"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected NPS rating in DB, got none"
+    ],
+    "turns": [
+      {
+        "user": "Почему письмо с логином не пришло?",
+        "agent": "Мне жаль, что письмо с логином не пришло. Давайте проверим несколько моментов:\n\n1. Убедитесь, что письмо не попало в папку \"Спам\" или \"Нежелательная почта\".\n2. Проверьте, правильно ли указан ваш адрес электронной почты.\n\nЕсли всё верно, но письмо всё равно не пришло, я могу создать обращение для нашей команды, чтобы они помогли вам. Напишите, пожалуйста, ваш номер телефона или email, чтобы я могла передать информацию.",
+        "tools": [
+          "search_knowledge_base"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Ок понятно, проверю спам",
+        "agent": "Отлично! Если письмо всё же не найдётся, дайте знать — я помогу разобраться дальше. Если будут ещё вопросы, обращайтесь в любое время! 😊",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "3, не всё понятно было",
+        "agent": "Спасибо за вашу обратную связь! Если что-то осталось непонятным или возникнут дополнительные вопросы, не стесняйтесь обращаться. Я всегда готова помочь! 😊",
+        "tools": [
+          "collect_nps"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 66
+  },
+  {
+    "scenario_id": 11,
+    "name": "NPS flow: refuses rating",
+    "notes": "Клиент отказывается от оценки",
+    "status": "OK",
+    "conversation_id": "938ccef4-988a-4886-8f90-a4995b13ff78",
+    "valid_turns": 3,
+    "total_turns": 3,
+    "all_tools": [
+      "search_knowledge_base"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [],
+    "turns": [
+      {
+        "user": "Как сменить пароль в личном кабинете?",
+        "agent": "К сожалению, я не нашла информацию о смене пароля в личном кабинете. Рекомендую обратиться в поддержку EdPalm — они помогут быстро решить этот вопрос. Если у вас есть ещё какие-то вопросы, дайте знать!",
+        "tools": [
+          "search_knowledge_base"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Спасибо!",
+        "agent": "Пожалуйста! Если возникнут ещё вопросы, не стесняйтесь обращаться. Удачного дня! 😊",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Не хочу ставить оценку, всё хорошо",
+        "agent": "Всё отлично, рада, что смогла помочь! Если появятся ещё вопросы, всегда обращайтесь. Хорошего дня! 😊",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 56
+  },
+  {
+    "scenario_id": 12,
+    "name": "Tag by LLM: payment issue resolved",
+    "notes": "Агент должен поставить тег payment в конце",
+    "status": "FAIL",
+    "conversation_id": "d3d397b7-a9d7-4918-a1fb-fc1aa6193c40",
+    "valid_turns": 2,
+    "total_turns": 2,
+    "all_tools": [
+      "search_knowledge_base",
+      "create_amocrm_ticket"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'tag_conversation' not called (got: ['search_knowledge_base', 'create_amocrm_ticket'])",
+      "Expected tag 'payment' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Уже неделю не могу оплатить, ссылка не работает",
+        "agent": "Понимаю, как это может быть неудобно. Я уже создала запрос в нашу службу поддержки, и они скоро свяжутся с вами, чтобы помочь решить проблему с оплатой. Спасибо за ваше терпение!",
+        "tools": [
+          "search_knowledge_base",
+          "create_amocrm_ticket"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Спасибо, ссылку выслали",
+        "agent": "Отлично! Если возникнут ещё какие-то вопросы или потребуется помощь, не стесняйтесь обращаться. Удачного дня! 😊",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 57
+  },
+  {
+    "scenario_id": 13,
+    "name": "Tag by LLM: documents issue",
+    "notes": "Тег documents",
+    "status": "FAIL",
+    "conversation_id": "aeb852e9-b5d0-4e90-872d-190f7545ef79",
+    "valid_turns": 2,
+    "total_turns": 2,
+    "all_tools": [
+      "search_knowledge_base",
+      "escalate_to_manager",
+      "escalate_to_manager"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'tag_conversation' not called (got: ['search_knowledge_base', 'escalate_to_manager', 'escalate_to_manager'])",
+      "Expected tag 'documents' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Сколько времени обрабатываются документы после отправки?",
+        "agent": "К сожалению, я не нашла точную информацию о времени обработки документов после отправки. Давайте я подключу специалиста, чтобы он мог помочь вам более детально.Я передала ваш вопрос менеджеру, и он свяжется с вами в ближайшее время, чтобы помочь. Если у вас есть другие вопросы, пожалуйста, дайте знать!",
+        "tools": [
+          "search_knowledge_base",
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Не найдена информация о времени обработки документов после отправки",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      },
+      {
+        "user": "Понятно, буду ждать",
+        "agent": "Я передала ваш вопрос менеджеру, и он свяжется с вами в ближайшее время, чтобы помочь. Если у вас есть другие вопросы, пожалуйста, дайте знать!",
+        "tools": [
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Клиент интересуется временем обработки документов, информация не найдена в базе знаний.",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 44
+  },
+  {
+    "scenario_id": 14,
+    "name": "Tag + NPS combined",
+    "notes": "Один диалог — тег + оценка",
+    "status": "FAIL",
+    "conversation_id": "a1f41134-5008-4acd-8e49-a385569b8cda",
+    "valid_turns": 2,
+    "total_turns": 2,
+    "all_tools": [
+      "search_knowledge_base",
+      "collect_nps"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'tag_conversation' not called (got: ['search_knowledge_base', 'collect_nps'])",
+      "Expected tag 'platform' not in DB tags set()",
+      "Expected NPS rating in DB, got none"
+    ],
+    "turns": [
+      {
+        "user": "Не могу найти раздел с аттестацией на сайте",
+        "agent": "Мне жаль, что вы столкнулись с этой проблемой. Давайте я помогу вам разобраться. Возможно, раздел с аттестацией находится в личном кабинете на портале EdPalm. Если у вас есть доступ к личному кабинету, попробуйте найти раздел \"Аттестация\" или \"Документы\". Если не удаётся, я могу подключить специалиста, чтобы он помог вам лично. Хотите, я это сделаю?",
+        "tools": [
+          "search_knowledge_base"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Нашла, спасибо большое! Оценка — 5",
+        "agent": "Отлично, рада, что всё получилось! Если возникнут ещё вопросы, всегда обращайтесь. Хорошего дня! 😊",
+        "tools": [
+          "collect_nps"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 42
+  },
+  {
+    "scenario_id": 15,
+    "name": "DMS: phone lookup",
+    "notes": "Клиент называет телефон",
+    "status": "OK",
+    "conversation_id": "9a71cada-6f09-4977-b736-97ebe2859d70",
+    "valid_turns": 2,
+    "total_turns": 2,
+    "all_tools": [
+      "get_client_profile"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [],
+    "turns": [
+      {
+        "user": "Хочу узнать статус моей заявки",
+        "agent": "Чтобы помочь вам с проверкой статуса заявки, мне понадобится ваш номер телефона. Можете его предоставить?",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Мой телефон +79161234567",
+        "agent": "К сожалению, я не нашла информацию по этому номеру телефона. Возможно, была допущена ошибка при вводе. Пожалуйста, проверьте номер или уточните, возможно ли, что заявка была оформлена на другой номер.",
+        "tools": [
+          "get_client_profile"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 45
+  },
+  {
+    "scenario_id": 16,
+    "name": "DMS: profile + KB",
+    "notes": "Профиль + поиск в базе",
+    "status": "FAIL",
+    "conversation_id": "459e051c-0162-402a-82c5-ab8e8efdd5e9",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "get_client_profile"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: ['get_client_profile'])",
+      "Expected tag 'attestation' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Мой телефон +79031112233, хочу проверить когда у нас аттестация",
+        "agent": "Я не нашла информацию по этому номеру телефона. Возможно, он был указан с ошибкой. Можете проверить и сообщить ещё раз? Или, если у вас есть другой вопрос, я с радостью помогу!",
+        "tools": [
+          "get_client_profile"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 24
+  },
+  {
+    "scenario_id": 17,
+    "name": "DMS: name save + profile",
+    "notes": "Клиент называет имя и телефон",
+    "status": "FAIL",
+    "conversation_id": "fedf3792-89da-4ebf-84dd-da55e5b33834",
+    "valid_turns": 2,
+    "total_turns": 2,
+    "all_tools": [
+      "save_user_name",
+      "save_user_name",
+      "get_client_profile"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: ['save_user_name', 'save_user_name', 'get_client_profile'])",
+      "Expected tag 'documents' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Привет, я Анна",
+        "agent": "Приятно познакомиться, Анна! 😊 Чем могу помочь вам сегодня?",
+        "tools": [
+          "save_user_name"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Мой номер +79161230000, помогите с документами",
+        "agent": "Анна, я пока не нашла информацию по вашему номеру телефона в нашей системе. Возможно, вы ещё не зарегистрированы. Могу помочь с общими вопросами по документам. Что именно вас интересует?",
+        "tools": [
+          "save_user_name",
+          "get_client_profile"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 43
+  },
+  {
+    "scenario_id": 18,
+    "name": "Escalation: explicit request",
+    "notes": "Прямой запрос на менеджера",
+    "status": "OK",
+    "conversation_id": "6fb77d57-b079-4b58-a3f0-bd9d94711998",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "escalate_to_manager"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [],
+    "turns": [
+      {
+        "user": "Хочу поговорить с живым человеком",
+        "agent": "Понимаю, иногда хочется обсудить всё лично. Я передам ваш запрос специалисту, и он свяжется с вами как можно скорее. Спасибо за ваше терпение!Я передала ваш запрос менеджеру. Он свяжется с вами в ближайшее время. Если у вас есть ещё вопросы, я здесь, чтобы помочь!",
+        "tools": [
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Клиент хочет поговорить с живым человеком",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 23
+  },
+  {
+    "scenario_id": 19,
+    "name": "Escalation: strong negative",
+    "notes": "Сильное недовольство",
+    "status": "OK",
+    "conversation_id": "bc2c344a-6d31-489d-8d02-1205bfeb419b",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "escalate_to_manager"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [],
+    "turns": [
+      {
+        "user": "Это безобразие! Уже месяц жду документы и никакого ответа!",
+        "agent": "Мне очень жаль, что так произошло. Я передала ваш запрос менеджеру, и он свяжется с вами в ближайшее время, чтобы решить эту проблему. Спасибо за ваше терпение.",
+        "tools": [
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Клиент выражает недовольство из-за задержки с документами и отсутствия ответа.",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 21
+  },
+  {
+    "scenario_id": 20,
+    "name": "Escalation: refund request",
+    "notes": "Требование возврата",
+    "status": "OK",
+    "conversation_id": "ef31c005-e3f0-456a-a92f-7f9c4e6d0318",
+    "valid_turns": 2,
+    "total_turns": 2,
+    "all_tools": [
+      "escalate_to_manager"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [],
+    "turns": [
+      {
+        "user": "Нас не устраивает качество обучения",
+        "agent": "Мне очень жаль слышать, что вас не устраивает качество обучения. Давайте разберёмся в ситуации и найдём решение. Можете, пожалуйста, уточнить, что именно вызывает недовольство?",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Хотим вернуть деньги",
+        "agent": "Понимаю ваше недовольство, и мне очень жаль, что так произошло. Я передала ваш запрос менеджеру, и он свяжется с вами в ближайшее время, чтобы обсудить возврат средств. Если у вас есть ещё вопросы или пожелания, пожалуйста, дайте знать.",
+        "tools": [
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Клиент хочет вернуть деньги из-за неудовлетворённого качества обучения.",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 42
+  },
+  {
+    "scenario_id": 21,
+    "name": "Escalation: threat to complaint",
+    "notes": "Угроза жалобой",
+    "status": "OK",
+    "conversation_id": "5bf6c5b4-7f66-40c5-ad8a-dfbac8e35e6b",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "escalate_to_manager"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [],
+    "turns": [
+      {
+        "user": "Если не ответите, я подам жалобу в Роспотребнадзор!",
+        "agent": "Мне очень жаль, что у вас возникли такие чувства. Я передала ваш запрос менеджеру, и он свяжется с вами в ближайшее время, чтобы помочь разобраться в ситуации.",
+        "tools": [
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Клиент угрожает жалобой в Роспотребнадзор.",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 20
+  },
+  {
+    "scenario_id": 22,
+    "name": "AutoTag: payment keyword",
+    "notes": "Ключевое слово оплат* → тег payment",
+    "status": "FAIL",
+    "conversation_id": "cc4dbe3d-65e0-4c9d-82ae-4b4b61152b9f",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "search_knowledge_base",
+      "escalate_to_manager"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tag 'payment' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Когда придёт квитанция об оплате?",
+        "agent": "К сожалению, я не нашла информацию о квитанции об оплате в базе знаний. Давайте я подключу специалиста, который сможет помочь с этим вопросом.Я передала ваш вопрос менеджеру, и он свяжется с вами в ближайшее время, чтобы помочь с квитанцией об оплате. Если есть ещё что-то, с чем я могу помочь, дайте знать!",
+        "tools": [
+          "search_knowledge_base",
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Клиент интересуется сроками получения квитанции об оплате, информации в базе знаний нет.",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 25
+  },
+  {
+    "scenario_id": 23,
+    "name": "AutoTag: lk keyword",
+    "notes": "'личный кабинет' → тег platform",
+    "status": "FAIL",
+    "conversation_id": "7bb7312b-efc5-4681-bc30-aba48625a479",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "search_knowledge_base"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tag 'platform' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Не могу зайти в личный кабинет",
+        "agent": "Мне жаль слышать, что у вас возникли трудности с входом в личный кабинет. Давайте попробуем разобраться вместе. \n\n1. Убедитесь, что вы вводите правильный логин и пароль. \n2. Проверьте, не включена ли клавиша Caps Lock на клавиатуре.\n3. Попробуйте сбросить пароль, если забыли его.\n\nЕсли проблема сохраняется, я могу создать обращение к нашей технической поддержке, чтобы они помогли вам. Хотите, чтобы я это сделала?",
+        "tools": [
+          "search_knowledge_base"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 21
+  },
+  {
+    "scenario_id": 24,
+    "name": "AutoTag: документы keyword",
+    "notes": "'документ' → тег documents",
+    "status": "FAIL",
+    "conversation_id": "a7c16ac4-fd0b-4ce2-8ed1-0cfccaf1bd7b",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "search_knowledge_base",
+      "escalate_to_manager"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tag 'documents' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Какие документы нужны для зачисления?",
+        "agent": "К сожалению, я не нашла информацию о необходимых документах для зачисления. Давайте я подключу специалиста, который поможет вам с этим вопросом.Я передала ваш вопрос менеджеру, и он свяжется с вами в ближайшее время, чтобы помочь с документами для зачисления. Если есть ещё что-то, с чем я могу помочь, дайте знать!",
+        "tools": [
+          "search_knowledge_base",
+          "escalate_to_manager"
+        ],
+        "escalation": {
+          "reason": "Не найдена информация о документах для зачисления в базе знаний.",
+          "manager_notified": true
+        },
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 22
+  },
+  {
+    "scenario_id": 25,
+    "name": "AutoTag: OGE keyword",
+    "notes": "'ОГЭ' → тег gia",
+    "status": "FAIL",
+    "conversation_id": "e829a9b2-3c6a-4315-a2f6-9342c3a6e06a",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [
+      "search_knowledge_base"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tag 'gia' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Как подготовиться к ОГЭ?",
+        "agent": "К сожалению, в базе знаний нет информации по подготовке к ОГЭ. Однако, я могу предложить несколько общих советов:\n\n1. **Планирование**: Начните с составления плана подготовки. Определите, какие предметы требуют больше внимания, и распределите время на их изучение.\n\n2. **Учебные материалы**: Используйте учебники, пособия и онлайн-ресурсы, чтобы получить разнообразные материалы для изучения.\n\n3. **Практика**: Регулярно решайте тесты и задания из прошлых лет. Это поможет понять формат экзамена и улучшить навыки решения задач.\n\n4. **Консультации**: Если есть возможность, обратитесь за помощью к уч",
+        "tools": [
+          "search_knowledge_base"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 37
+  },
+  {
+    "scenario_id": 26,
+    "name": "Off-topic redirect",
+    "notes": "Вопрос вне темы поддержки",
+    "status": "OK",
+    "conversation_id": "ce8ea2d7-38b1-4ed4-8197-8f2de4afc446",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [],
+    "turns": [
+      {
+        "user": "Какая погода сегодня в Москве?",
+        "agent": "Я специализируюсь на вопросах обучения в EdPalm и не могу предоставить информацию о погоде. Но с удовольствием помогу с любыми вопросами о нашей школе! Чем могу помочь?",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 23
+  },
+  {
+    "scenario_id": 27,
+    "name": "Multi-turn: full support flow",
+    "notes": "Полный сценарий поддержки",
+    "status": "FAIL",
+    "conversation_id": "3bf76d75-4601-4f42-89fc-9fe001f541ad",
+    "valid_turns": 3,
+    "total_turns": 4,
+    "all_tools": [
+      "search_knowledge_base",
+      "create_amocrm_ticket",
+      "collect_nps",
+      "tag_conversation"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tag 'technical' not in DB tags set()",
+      "Expected NPS rating in DB, got none"
+    ],
+    "turns": [
+      {
+        "user": "Добрый день, у меня проблема с платформой",
+        "agent": "Понимаю, это может быть неприятно. Давайте разберёмся с вашей проблемой. Можете подробнее описать, что именно происходит?",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Не открывается урок по математике — ошибка 403",
+        "agent": "Мне жаль, что вы столкнулись с этой проблемой. Ошибка 403 обычно связана с доступом. Давайте я подключу специалиста, чтобы они могли помочь вам разобраться с этой ситуацией. Одну минуту.Я создала обращение к специалистам, и они скоро свяжутся с вами для решения проблемы. Если потребуется дополнительная информация, они могут запросить её у вас. Спасибо за ваше терпение!",
+        "tools": [
+          "search_knowledge_base",
+          "create_amocrm_ticket"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Спасибо, попробую очистить кэш",
+        "agent": "Отличная идея! Очистка кэша часто помогает решить такие проблемы. Если это не сработает, не переживайте — наши специалисты обязательно помогут вам. Если у вас возникнут ещё вопросы, всегда можете обратиться ко мне. Удачи! 😊",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Всё заработало! Оценка 4",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [
+          "collect_nps",
+          "tag_conversation"
+        ],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 255
+  },
+  {
+    "scenario_id": 28,
+    "name": "English speaker",
+    "notes": "Клиент пишет по-английски",
+    "status": "FAIL",
+    "conversation_id": "a8764d39-1561-4d2b-98b8-daffc5e6bf64",
+    "valid_turns": 1,
+    "total_turns": 1,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])"
+    ],
+    "turns": [
+      {
+        "user": "I can't access my account, what should I do?",
+        "agent": "I'm here to help! Let's first check some common solutions for account access issues. Could you please let me know if you've tried resetting your password or checking your internet connection? Also, make sure you're using the correct login credentials.\n\nIf the problem persists, I can guide you further. Please note that our platform operates in Russian, but I'm happy to assist you in English for any support you need.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 23
+  },
+  {
+    "scenario_id": 29,
+    "name": "Empty then substantive",
+    "notes": "Сначала пустое, потом вопрос",
+    "status": "FAIL",
+    "conversation_id": "f8ded073-0e39-43c5-8836-a5c86814c676",
+    "valid_turns": 1,
+    "total_turns": 2,
+    "all_tools": [],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'search_knowledge_base' not called (got: [])",
+      "Expected tag 'platform' not in DB tags set()",
+      "Expected tag 'documents' not in DB tags set()"
+    ],
+    "turns": [
+      {
+        "user": "Здравствуйте",
+        "agent": "Здравствуйте! Как я могу вам помочь сегодня? 😊",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": false
+      },
+      {
+        "user": "Не могу найти договор в личном кабинете",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [],
+        "escalation": null,
+        "is_fallback": true
+      }
+    ],
+    "elapsed_s": 141
+  },
+  {
+    "scenario_id": 30,
+    "name": "CRM ticket creation",
+    "notes": "Вопрос требует создания тикета",
+    "status": "FAIL",
+    "conversation_id": "9c23ccf3-94f3-4880-990f-bf4e01d29be7",
+    "valid_turns": 1,
+    "total_turns": 2,
+    "all_tools": [
+      "search_knowledge_base",
+      "search_knowledge_base"
+    ],
+    "db_tags": [],
+    "db_nps": null,
+    "db_notifications": [],
+    "failures": [
+      "Expected tool 'create_amocrm_ticket' not called (got: ['search_knowledge_base', 'search_knowledge_base'])"
+    ],
+    "turns": [
+      {
+        "user": "Мне нужна справка о периоде обучения",
+        "agent": "Секунду, есть техническая пауза с генерацией ответа. Я уже продолжаю работу. Можете повторить вопрос или уточнить, чем могу помочь.",
+        "tools": [
+          "search_knowledge_base"
+        ],
+        "escalation": null,
+        "is_fallback": true
+      },
+      {
+        "user": "Да, официальная нужна с печатью",
+        "agent": "К сожалению, я не нашла информации в базе знаний о получении справки о периоде обучения с печатью. Давайте я создам обращение, и наши специалисты свяжутся с вами для уточнения деталей. Можете, пожалуйста, указать ваш номер телефона, чтобы мы могли быстрее обработать запрос?",
+        "tools": [
+          "search_knowledge_base"
+        ],
+        "escalation": null,
+        "is_fallback": false
+      }
+    ],
+    "elapsed_s": 111
+  }
+]

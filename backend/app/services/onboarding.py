@@ -40,8 +40,8 @@ class OnboardingService:
     ) -> OnboardingVerifyResponse:
         phone = normalize_phone(req.phone)
         logger.info(
-            "Onboarding verify: actor=%s client_type=%s phone=%s",
-            actor.actor_id, req.client_type, phone,
+            "Onboarding verify: actor=%s client_type=%s",
+            actor.actor_id, req.client_type,
         )
 
         # Search DMS by phone
@@ -113,7 +113,7 @@ class OnboardingService:
             dms_data=dms_data.model_dump() if dms_data else None,
             verification_status="found",
         )
-        logger.info("Auto-saved DMS profile for actor=%s phone=%s", actor_id, norm_phone)
+        logger.info("Auto-saved DMS profile for actor=%s", actor_id)
 
         # Enrich from existing profiles with same phone (background)
         self._try_enrich_from_phone(actor_id, norm_phone)
@@ -132,8 +132,8 @@ class OnboardingService:
                 # Pick the richest donor (DMS-verified first, then most recent)
                 donor = donors[0]
                 logger.info(
-                    "Phone merge: enriching actor=%s from donor=%s (phone=%s)",
-                    actor_id, donor.get("actor_id"), phone,
+                    "Phone merge: enriching actor=%s from donor=%s",
+                    actor_id, donor.get("actor_id"),
                 )
                 self.repo.enrich_profile_from_existing(actor_id, donor)
 
@@ -144,7 +144,7 @@ class OnboardingService:
                 if copied:
                     logger.info("Phone merge: copied %d atoms to actor=%s", copied, actor_id)
             except Exception:
-                logger.warning("Phone merge failed for actor=%s phone=%s", actor_id, phone, exc_info=True)
+                logger.warning("Phone merge failed for actor=%s", actor_id, exc_info=True)
 
         threading.Thread(target=_run, daemon=True).start()
 

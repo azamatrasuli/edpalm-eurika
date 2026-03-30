@@ -61,7 +61,7 @@ class PaymentService:
         # 2. Find payer contact in DMS
         search_result = self.dms.search_contact_by_phone(payer_phone)
         if not search_result:
-            logger.warning("Payer contact not found in DMS: %s", payer_phone)
+            logger.warning("Payer contact not found in DMS")
             return {
                 "success": False,
                 "error": f"Контакт с телефоном {payer_phone} не найден в системе. Проверьте номер.",

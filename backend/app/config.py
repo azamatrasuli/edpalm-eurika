@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     openai_tts_model: str = Field(default="tts-1", alias="OPENAI_TTS_MODEL")
     openai_tts_voice: str = Field(default="nova", alias="OPENAI_TTS_VOICE")
 
+    stt_enabled: bool = Field(default=False, alias="STT_ENABLED")
+    tts_enabled: bool = Field(default=False, alias="TTS_ENABLED")
+
     rag_top_k: int = Field(default=5, alias="RAG_TOP_K")
     rag_similarity_threshold: float = Field(default=0.3, alias="RAG_SIMILARITY_THRESHOLD")
 
@@ -89,6 +92,15 @@ class Settings(BaseSettings):
 
     # --- Dashboard ---
     dashboard_api_key: str = Field(default="", alias="DASHBOARD_API_KEY")
+
+    # --- Advertising (38-ФЗ) ---
+    advertising_erid: str = Field(default="", alias="ADVERTISING_ERID")
+    advertising_inn: str = Field(default="", alias="ADVERTISING_INN")
+
+    # --- PII Proxy + Encryption (152-ФЗ) ---
+    pii_proxy_enabled: bool = Field(default=True, alias="PII_PROXY_ENABLED")
+    pii_encryption_key: str | None = Field(default=None, alias="PII_ENCRYPTION_KEY")
+    llm_audit_hmac_key: str | None = Field(default=None, alias="LLM_AUDIT_HMAC_KEY")
 
     # --- Conversational Memory ---
     memory_enabled: bool = Field(default=True, alias="MEMORY_ENABLED")

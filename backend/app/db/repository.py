@@ -311,6 +311,27 @@ class ConversationRepository:
             logger.warning("Failed to list conversations for actor=%s", actor_id, exc_info=True)
             return [], 0
 
+    def count_conversations(self, actor_id: str, agent_role: str | None = None) -> int:
+        """Total non-archived conversations for an actor."""
+        if not self._has_db():
+            return 0
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return 0
+                with conn.cursor() as cur:
+                    where = "WHERE actor_id = %s AND archived_at IS NULL"
+                    params: list = [actor_id]
+                    if agent_role:
+                        where += " AND agent_role = %s"
+                        params.append(agent_role)
+                    cur.execute(f"SELECT COUNT(*) AS cnt FROM conversations {where}", params)
+                    row = cur.fetchone()
+                    return row["cnt"] if row else 0
+        except Exception:
+            logger.warning("count_conversations failed for %s", actor_id, exc_info=True)
+            return 0
+
     def archive_conversation(self, conversation_id: str, actor_id: str) -> bool:
         """Soft-delete a conversation. Returns True if archived."""
         if not self._has_db():

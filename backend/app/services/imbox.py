@@ -86,7 +86,7 @@ class ImBoxService:
             if not contact:
                 logger.error("[setup] failed to find/create contact for %s", actor.actor_id)
                 return
-            logger.info("[setup] contact: id=%d name=%s is_new=%s", contact.id, contact.name, is_new)
+            logger.info("[setup] contact: id=%d is_new=%s", contact.id, is_new)
 
         # Save contact mapping
         self.repo.save_contact_mapping(actor.actor_id, contact.id, contact.name)
@@ -163,8 +163,8 @@ class ImBoxService:
 
     def forward_user_message(self, actor: ActorContext, text: str) -> None:
         logger.info(
-            "[forward_user] actor=%s channel=%s is_enabled=%s text=%s",
-            actor.actor_id, actor.channel.value, self.is_enabled(), text[:60],
+            "[forward_user] actor=%s channel=%s is_enabled=%s text_len=%d",
+            actor.actor_id, actor.channel.value, self.is_enabled(), len(text),
         )
         if not self.is_enabled():
             logger.info("[forward_user] SKIP — imBox not configured")
@@ -204,7 +204,7 @@ class ImBoxService:
             if lead_id:
                 truncated = text[:2000] if len(text) > 2000 else text
                 self.crm.add_note(lead_id, f"[Эврика]: {truncated}")
-                logger.info("[forward_agent] note added to lead=%d, text=%s", lead_id, text[:60])
+                logger.info("[forward_agent] note added to lead=%d text_len=%d", lead_id, len(text))
             else:
                 logger.warning("[forward_agent] no lead_id found for actor=%s conv=%s, note skipped",
                                actor.actor_id, conversation_id)

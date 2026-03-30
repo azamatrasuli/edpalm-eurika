@@ -331,8 +331,13 @@ def process_pending_notifications() -> None:
                 logger.warning("Could not render template for notif_id=%s type=%s", notif_id, notification_type)
                 continue
 
-            # Route: manager alerts → manager chat, client notifications → actor
+            # Ad labeling for proactive client notifications (38-ФЗ)
             is_manager_alert = notification_type.startswith("alert_")
+            if not is_manager_alert and notification_type in ("payment_reminder", "document_reminder"):
+                from app.services.followup import _format_ad_label
+                text = _format_ad_label() + "\n" + text
+
+            # Route: manager alerts → manager chat, client notifications → actor
             if is_manager_alert:
                 ok = send_telegram_to_manager(text)
             else:
