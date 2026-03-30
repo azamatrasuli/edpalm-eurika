@@ -16,6 +16,29 @@
 
 **Стек:** React 19 (frontend) + Python FastAPI (backend) + OpenAI GPT-4o + pgvector RAG
 
+### Юридическое соответствие (ФЗ-152, 38-ФЗ)
+
+Реализовано в коде (коммит `634b4c8`, 30.03.2026):
+
+| Компонент | Что сделано |
+|---|---|
+| **PII Proxy** | Токенизация ПДн перед OpenAI (`pii_proxy.py`). Включён по умолчанию. Покрытие: LLM, embeddings (memory, summarizer, RAG) |
+| **Consent** | 5 целей (3 обязательных + 2 опциональных), audit log, IP/timestamp, отзыв с side-effects |
+| **Несовершеннолетние** | Проверка возраста, обязательный чекбокс родителя для < 14 лет (ст. 9 ч. 6 ФЗ-152) |
+| **Политика конфиденциальности** | `PrivacyPolicyPage.jsx` — 11 разделов по ст. 18.1. Текст временный — ожидается от юриста ЦПСО |
+| **Удаление данных** | Каскад по 13 таблицам, grace period 30 дней, export JSON |
+| **Маскирование логов** | `MaskingFilter` — телефоны/email в production |
+| **ERID маркировка** | Follow-up (sales) и payment/document reminders маркируются по 38-ФЗ. ERID/INN из env |
+| **AI дисклеймер** | Footer в чате, header роли, WelcomeScreen. Промпт: "ИИ-ассистент" |
+
+**Ожидает от юриста ЦПСО (Ольга Нерадовская):**
+- Текст Политики конфиденциальности → вставить в `PrivacyPolicyPage.jsx`
+- Формулировки согласий → обновить `ConsentScreen.jsx`
+
+**Административные задачи (не код):**
+- Обновить реестр РКН: "неавтоматизированная" → "автоматизированная обработка"
+- Получить ERID-токен → прописать `ADVERTISING_ERID` и `ADVERTISING_INN` в .env на Render
+
 ---
 
 ## Структура репозитория
@@ -37,13 +60,13 @@ eurika/
 │   │   ├── api/           # chat.py, conversations.py, dashboard.py, onboarding.py, profile.py, consent.py, renewal.py, telegram.py
 │   │   ├── agent/         # prompt.py (sprint5-v1), tools.py (sales 11 / support 8 / teacher 5)
 │   │   ├── rag/           # search.py, loader.py
-│   │   ├── services/      # chat.py, llm.py, onboarding.py, payment.py, memory.py, summarizer.py, notifications.py, scheduler.py, followup.py, funnel.py, nps.py, tagger.py, imbox.py, auto_escalation.py, telegram_sender.py, data_lifecycle.py, support_onboarding.py
+│   │   ├── services/      # chat.py, llm.py, onboarding.py, payment.py, memory.py, summarizer.py, notifications.py, scheduler.py, followup.py, funnel.py, nps.py, tagger.py, imbox.py, auto_escalation.py, telegram_sender.py, data_lifecycle.py, support_onboarding.py, pii_proxy.py, crypto.py
 │   │   ├── integrations/  # amocrm.py, amocrm_chat.py, dms.py
 │   │   ├── auth/          # service.py, portal.py, telegram.py, external.py
 │   │   ├── db/            # pool.py, repository.py, dashboard.py, events.py, memory_repository.py, consent_repository.py
 │   │   ├── models/        # chat.py, onboarding.py, profile.py, dashboard.py, errors.py
 │   │   └── pipeline/      # webinar → KB pipeline (CLI: extract_audio → transcribe → topics → clean → markdown → load_rag)
-│   ├── sql/               # 001-020 миграции
+│   ├── sql/               # 001-024 миграции
 │   ├── requirements.txt
 │   └── .env.example
 ├── seller_staff/          # Роль: Продавец
@@ -159,7 +182,7 @@ PYTHONPATH=. python -m app.rag.loader --namespace support --dir ../support_staff
 - Dashboard (metrics, conversations, escalations, unanswered — API key auth)
 - Profile (CRUD, memory management)
 - Consent (ФЗ-152: grant/revoke/status)
-- Data lifecycle (export JSON, deletion с 14-дневным recovery)
+- Data lifecycle (export JSON, deletion с 30-дневным recovery)
 - Onboarding (DMS verification by phone)
 - Manager mode (connect/handback/approve)
 - Admin (trigger-renewals, check-stale-deals, reload-settings)
@@ -172,6 +195,7 @@ PYTHONPATH=. python -m app.rag.loader --namespace support --dir ../support_staff
 - DashboardPage — KPI, графики (Recharts), фильтры
 - SupervisorPage — мониторинг диалогов, manager connect
 - ProfilePage — профиль, память, consent, GDPR
+- PrivacyPolicyPage — политика конфиденциальности (ст. 18.1 ФЗ-152)
 
 ---
 
