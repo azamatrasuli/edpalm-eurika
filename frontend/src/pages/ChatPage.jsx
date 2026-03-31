@@ -73,7 +73,7 @@ function avatarProps(size) {
 }
 
 function getActorHints(auth) {
-  if (!auth) return { actorId: null, actorPhone: null }
+  if (!auth) return { actorId: null, actorPhone: null, actorPortalRole: null }
 
   if (auth.portal_token) {
     try {
@@ -81,9 +81,10 @@ function getActorHints(auth) {
       return {
         actorId: payload.user_id ? `portal:${payload.user_id}` : null,
         actorPhone: payload.phone || null,
+        actorPortalRole: payload.user_role || null, // 3=parent, 4=student, 5=guest
       }
     } catch {
-      return { actorId: null, actorPhone: null }
+      return { actorId: null, actorPhone: null, actorPortalRole: null }
     }
   }
 
@@ -94,13 +95,14 @@ function getActorHints(auth) {
       return {
         actorId: user.id ? `telegram:${user.id}` : null,
         actorPhone: null,
+        actorPortalRole: null,
       }
     } catch {
-      return { actorId: null, actorPhone: null }
+      return { actorId: null, actorPhone: null, actorPortalRole: null }
     }
   }
 
-  return { actorId: null, actorPhone: null }
+  return { actorId: null, actorPhone: null, actorPortalRole: null }
 }
 
 function triggerHaptic() {
@@ -116,7 +118,7 @@ export function ChatPage() {
   useTelegramControls()
   const auth = useMemo(() => buildAuthPayload(), [])
   const agentRole = useMemo(() => getAgentRole(), [])
-  const { actorId, actorPhone } = useMemo(() => getActorHints(auth), [auth])
+  const { actorId, actorPhone, actorPortalRole } = useMemo(() => getActorHints(auth), [auth])
   const convFromURL = useMemo(() => getConvFromURL(), [])
   const managerMode = useMemo(() => isManagerMode(), [])
 
@@ -134,7 +136,7 @@ export function ChatPage() {
     errorToastTimerRef.current = setTimeout(() => setErrorToast(''), 5000)
   }, [])
 
-  const onboarding = useOnboarding(auth, actorId, actorPhone)
+  const onboarding = useOnboarding(auth, actorId, actorPhone, actorPortalRole)
   const consent = useConsent(auth)
   const chat = useChat(auth, agentRole, onboarding.isComplete && consent.consentReady, { initialConvId: convFromURL })
   const convList = useConversationList(auth, agentRole, { onError: showErrorToast })

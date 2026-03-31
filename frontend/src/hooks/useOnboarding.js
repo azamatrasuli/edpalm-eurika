@@ -17,7 +17,7 @@ function profileStorageKey(actorId) {
  * - Telegram / External (no phone): skip to chat immediately, LLM qualifies.
  * - Returning users: profile restored from backend.
  */
-export function useOnboarding(auth, actorId, actorPhone) {
+export function useOnboarding(auth, actorId, actorPhone, actorPortalRole) {
   const [step, setStep] = useState(STEPS.CHECKING)
   const [profileData, setProfileData] = useState(null)
   const [error, setError] = useState('')
@@ -66,7 +66,7 @@ export function useOnboarding(auth, actorId, actorPhone) {
           try {
             const verifyRes = await verifyOnboarding(auth, {
               client_type: 'existing',
-              user_role: 'parent',
+              user_role: actorPortalRole === 4 ? 'student' : 'parent',
               phone: actorPhone,
               students: [],
             })

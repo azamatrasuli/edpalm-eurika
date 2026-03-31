@@ -147,14 +147,28 @@ class LLMService:
         name = name or "не указано"
         phone = actor.phone or "не указано"
         channel = actor.channel.value
-        return (
-            "Контекст клиента:\n"
-            f"- Канал входа: {channel}\n"
-            f"- Имя: {name}\n"
-            f"- Телефон: {phone}\n"
-            "- Используй этот контекст в ответе, когда это уместно.\n"
-            "- Если имя известно — обращайся по имени и НЕ спрашивай его заново."
-        )
+        meta = actor.metadata or {}
+
+        # Portal role: 3=родитель, 4=ученик, 5=гость
+        role_map = {3: "родитель", 4: "ученик", 5: "гость"}
+        portal_role = role_map.get(meta.get("user_role"), None)
+        is_minor = meta.get("is_minor")
+
+        lines = [
+            "Контекст клиента:",
+            f"- Канал входа: {channel}",
+            f"- Имя: {name}",
+            f"- Телефон: {phone}",
+        ]
+        if portal_role:
+            lines.append(f"- Роль на портале: {portal_role}")
+        if is_minor is True:
+            lines.append("- Несовершеннолетний: да (ученик)")
+        elif is_minor is False and portal_role:
+            lines.append("- Несовершеннолетний: нет")
+        lines.append("- Используй этот контекст в ответе, когда это уместно.")
+        lines.append("- Если имя известно — обращайся по имени и НЕ спрашивай его заново.")
+        return "\n".join(lines)
 
     def _crm_context(self, crm_data: dict | None) -> str:
         if not crm_data:
