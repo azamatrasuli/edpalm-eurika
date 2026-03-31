@@ -1100,6 +1100,35 @@ class ConversationRepository:
             logger.warning("Failed to update display_name for actor=%s", actor_id, exc_info=True)
             return False
 
+    def enrich_portal_profile(self, actor_id: str, updates: dict) -> bool:
+        """Update specific fields of an existing portal profile."""
+        if not self._has_db() or not updates:
+            return False
+        try:
+            with get_connection() as conn:
+                if conn is None:
+                    return False
+                with conn.cursor() as cur:
+                    sets = []
+                    vals = []
+                    for key, val in updates.items():
+                        if key == "children":
+                            sets.append(f"{key} = %s")
+                            vals.append(Json(val))
+                        else:
+                            sets.append(f"{key} = %s")
+                            vals.append(val)
+                    vals.append(actor_id)
+                    cur.execute(
+                        f"UPDATE agent_user_profiles SET {', '.join(sets)} WHERE actor_id = %s",
+                        vals,
+                    )
+                conn.commit()
+                return True
+        except (psycopg.Error, OSError):
+            logger.warning("Failed to enrich portal profile for actor=%s", actor_id, exc_info=True)
+            return False
+
     # ---- Profile stats -------------------------------------------------------
 
     def get_profile_stats(self, actor_id: str) -> dict:

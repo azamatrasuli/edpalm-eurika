@@ -175,11 +175,53 @@ class OnboardingService:
 
         threading.Thread(target=_run, daemon=True).start()
 
+    def _enrich_portal_profile_if_needed(self, actor_id: str, profile) -> None:
+        """Auto-enrich portal profiles that are missing data from portal API.
+        Called lazily on first chat — fills fio, grade, children from portal."""
+        if not actor_id.startswith("portal:"):
+            return
+        # Skip if profile already has fio (already enriched)
+        if profile.fio:
+            return
+        try:
+            portal_uid = int(actor_id.split(":")[1])
+        except (IndexError, ValueError):
+            return
+        try:
+            from app.integrations.portal import get_portal_client
+            client = get_portal_client()
+            ctx = client.get_user_context(portal_uid)
+            if not ctx:
+                return
+            # Update profile in DB with portal data
+            updates = {}
+            if ctx.fio:
+                updates["fio"] = ctx.fio
+                profile.fio = ctx.fio
+                self.repo.update_profile_display_name(actor_id, ctx.fio)
+            if ctx.grade and not profile.grade:
+                updates["grade"] = ctx.grade
+                profile.grade = ctx.grade
+            if ctx.children and not profile.children:
+                children = [{"fio": c.fio, "moodle_id": c.moodle_id} for c in ctx.children]
+                updates["children"] = children
+                profile.children = children
+            if ctx.avatar:
+                updates["avatar"] = ctx.avatar
+            if updates:
+                self.repo.enrich_portal_profile(actor_id, updates)
+                logger.info("Portal auto-enrich: actor=%s fields=%s", actor_id, list(updates.keys()))
+        except Exception:
+            logger.debug("Portal auto-enrich failed for %s", actor_id, exc_info=True)
+
     def get_profile_context_for_llm(self, actor_id: str) -> str | None:
         """Build context string for injection into LLM system messages."""
         profile = self.check_profile(actor_id)
         if not profile:
             return None
+
+        # Auto-enrich portal profiles on first chat
+        self._enrich_portal_profile_if_needed(actor_id, profile)
 
         client_type_ru = "действующий клиент" if profile.client_type == "existing" else "новый клиент"
         role_ru = "родитель" if profile.user_role == "parent" else "ученик"
