@@ -111,7 +111,8 @@ def get_profile(req: ProfileRequest) -> ProfileResponse:
 
     # Fallback: если БД пустая, использовать данные из JWT (ActorContext)
     meta = actor.metadata or {}
-    p_name   = profile.get("display_name") or actor.display_name
+    # Приоритет имени: fio из портала > display_name из БД > имя из JWT
+    p_name   = profile.get("fio") or profile.get("display_name") or actor.display_name
     p_phone  = profile.get("phone") or actor.phone
     p_avatar = profile.get("avatar") or meta.get("avatar")
     p_portal_role = profile.get("portal_role") or (meta.get("user_role") if isinstance(meta.get("user_role"), int) else None)
