@@ -798,9 +798,10 @@ def _make_stream(
 # ---- helpers --------------------------------------------------------------
 
 def _sync_portal_claims_to_profile(actor: "ActorContext") -> None:
-    """Sync JWT claims (name, phone, avatar, role, is_minor) to agent_user_profiles.
+    """Sync JWT claims to agent_user_profiles.
 
-    Only fills empty fields — never overwrites manual edits.
+    JWT = актуальное состояние портала → новые значения имеют приоритет.
+    Создаёт профиль при первом визите портального пользователя.
     """
     try:
         from app.db.pool import get_connection
@@ -808,18 +809,32 @@ def _sync_portal_claims_to_profile(actor: "ActorContext") -> None:
         profile = chat_service.repo.get_user_profile(actor.actor_id) or {}
         meta = actor.metadata or {}
 
-        # Определяем что нужно обновить
         updates = {}
-        if actor.display_name and not profile.get("display_name"):
+
+        # ФИО и display_name — JWT несёт полное ФИО (Фамилия Имя Отчество)
+        if actor.display_name:
             updates["display_name"] = actor.display_name
-        if actor.phone and not profile.get("phone"):
+            updates["fio"] = actor.display_name
+        if actor.phone:
             updates["phone"] = actor.phone
-        if meta.get("avatar") and not profile.get("avatar"):
+
+        # Поля из JWT metadata
+        if meta.get("avatar"):
             updates["avatar"] = meta["avatar"]
-        if meta.get("user_role") and not profile.get("portal_role"):
+        if meta.get("user_role"):
             updates["portal_role"] = meta["user_role"]
-        if meta.get("is_minor") is not None and profile.get("is_minor") is None:
+        if meta.get("is_minor") is not None:
             updates["is_minor"] = meta["is_minor"]
+        if meta.get("grade"):
+            updates["grade"] = meta["grade"]
+
+        # Для новых портальных пользователей: client_type и user_role
+        # (чтобы get_profile_context_for_llm не возвращал None)
+        portal_role_map = {3: "parent", 4: "student", 5: "parent"}
+        if not profile.get("client_type"):
+            updates["client_type"] = "existing"
+        if not profile.get("user_role") and meta.get("user_role"):
+            updates["user_role"] = portal_role_map.get(meta["user_role"], "parent")
 
         if not updates:
             return
@@ -828,9 +843,9 @@ def _sync_portal_claims_to_profile(actor: "ActorContext") -> None:
             if not conn:
                 return
             with conn.cursor() as cur:
-                # UPSERT: создаёт профиль если нет, обновляет только NULL поля
+                # UPSERT: JWT = источник правды, новое значение важнее старого
                 set_clauses = ", ".join(
-                    f"{col} = COALESCE(agent_user_profiles.{col}, EXCLUDED.{col})"
+                    f"{col} = COALESCE(EXCLUDED.{col}, agent_user_profiles.{col})"
                     for col in updates
                 )
                 cols = ["actor_id"] + list(updates.keys())
@@ -845,6 +860,23 @@ def _sync_portal_claims_to_profile(actor: "ActorContext") -> None:
 
         logger.info("Synced portal claims → profile for %s: %s",
                      actor.actor_id, list(updates.keys()))
+
+        # Фоновое обогащение через S2S API (дети, полное ФИО — ПДн только server-to-server)
+        if actor.channel == Channel.portal:
+            import threading
+
+            def _enrich_portal_bg(aid: str) -> None:
+                try:
+                    from app.services.onboarding import OnboardingService
+                    svc = OnboardingService()
+                    p = svc.check_profile(aid)
+                    if p:
+                        svc._enrich_portal_profile_if_needed(aid, p)
+                except Exception:
+                    logger.debug("Background portal enrichment failed for %s", aid, exc_info=True)
+
+            threading.Thread(target=_enrich_portal_bg, args=(actor.actor_id,), daemon=True).start()
+
     except Exception:
         logger.debug("Portal claims sync failed for %s", actor.actor_id, exc_info=True)
 

@@ -31,6 +31,7 @@ class PortalChild:
     portal_user_id: int
     fio: str
     moodle_id: int | None = None
+    grade: int | None = None
 
 
 @dataclass
@@ -40,6 +41,7 @@ class PortalUserContext:
     phone: str | None = None
     avatar: str | None = None
     moodle_id: int | None = None
+    grade: int | None = None
     role_id: int = 0             # 3=parent, 4=student, 5=guest
     children: list[PortalChild] = field(default_factory=list)
 
@@ -82,6 +84,7 @@ class PortalClient:
                     portal_user_id=c["portal_user_id"],
                     fio=c["fio"],
                     moodle_id=c.get("moodle_id"),
+                    grade=c.get("grade"),
                 )
                 for c in data.get("children", [])
             ]
@@ -92,6 +95,7 @@ class PortalClient:
                 phone=data.get("phone"),
                 avatar=data.get("avatar"),
                 moodle_id=data.get("moodle_id"),
+                grade=data.get("grade"),
                 role_id=data.get("role_id", 0),
                 children=children,
             )

@@ -153,6 +153,7 @@ class LLMService:
         role_map = {3: "родитель", 4: "ученик", 5: "гость"}
         portal_role = role_map.get(meta.get("user_role"), None)
         is_minor = meta.get("is_minor")
+        grade = meta.get("grade")
 
         lines = [
             "Контекст клиента:",
@@ -162,6 +163,8 @@ class LLMService:
         ]
         if portal_role:
             lines.append(f"- Роль на портале: {portal_role}")
+        if grade:
+            lines.append(f"- Класс: {grade}")
         if is_minor is True:
             lines.append("- Несовершеннолетний: да (ученик)")
         elif is_minor is False and portal_role:

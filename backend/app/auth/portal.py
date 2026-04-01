@@ -46,5 +46,7 @@ class PortalAuth:
                 "birth_date": payload.get("birth_date"),
                 "user_role": payload.get("user_role"),
                 "avatar": payload.get("avatar"),
+                "grade": payload.get("grade"),
+                "moodle_id": payload.get("moodle_id"),
             },
         )

@@ -69,7 +69,7 @@ class OnboardingService:
         portal_ctx = self._fetch_portal_context(actor)
         if portal_ctx:
             if not children and portal_ctx.children:
-                children = [{"fio": c.fio, "moodle_id": c.moodle_id} for c in portal_ctx.children]
+                children = [{"fio": c.fio, "moodle_id": c.moodle_id, "grade": c.grade} for c in portal_ctx.children]
             # Портал — авторитетный источник ФИО и аватара
             if portal_ctx.fio:
                 req.fio = portal_ctx.fio
@@ -176,12 +176,12 @@ class OnboardingService:
         threading.Thread(target=_run, daemon=True).start()
 
     def _enrich_portal_profile_if_needed(self, actor_id: str, profile) -> None:
-        """Auto-enrich portal profiles that are missing data from portal API.
-        Called lazily on first chat — fills fio, grade, children from portal."""
+        """Auto-enrich portal profiles from portal S2S API.
+        Called lazily — fills fio, grade, children (ПДн третьих лиц — только S2S)."""
         if not actor_id.startswith("portal:"):
             return
-        # Skip if profile already has fio (already enriched)
-        if profile.fio:
+        # Пропускаем только если профиль полностью обогащён (ФИО + дети)
+        if profile.fio and profile.children:
             return
         try:
             portal_uid = int(actor_id.split(":")[1])
@@ -203,7 +203,7 @@ class OnboardingService:
                 updates["grade"] = ctx.grade
                 profile.grade = ctx.grade
             if ctx.children and not profile.children:
-                children = [{"fio": c.fio, "moodle_id": c.moodle_id} for c in ctx.children]
+                children = [{"fio": c.fio, "moodle_id": c.moodle_id, "grade": c.grade} for c in ctx.children]
                 updates["children"] = children
                 profile.children = children
             if ctx.avatar:
