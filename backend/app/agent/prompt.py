@@ -1,6 +1,22 @@
 from __future__ import annotations
+from functools import lru_cache
+from pathlib import Path
 
 PROMPT_VERSION = "sprint5-v1"
+
+# ---------------------------------------------------------------------------
+# Teacher styles — loaded from .md files for maintainability
+# ---------------------------------------------------------------------------
+_TEACHER_STYLES_DIR = Path(__file__).parent / "teacher_styles"
+
+
+@lru_cache(maxsize=16)
+def _load_teacher_prompt(filename: str) -> str:
+    """Load a teacher prompt file. Cached for performance."""
+    p = _TEACHER_STYLES_DIR / filename
+    if p.exists():
+        return p.read_text(encoding="utf-8").strip()
+    return ""
 
 # ---------------------------------------------------------------------------
 # PERSONALITY CORE — общее ядро личности для всех ролей
@@ -539,73 +555,12 @@ SUPPORT_ROLE_PROMPT = """
 """.strip()
 
 # ---------------------------------------------------------------------------
-# TEACHER ROLE PROMPT
+# TEACHER ROLE PROMPT — loaded from teacher_styles/*.md files
 # ---------------------------------------------------------------------------
-
-TEACHER_ROLE_PROMPT = """
-# РОЛЬ: Виртуальный учитель
-
-Ты — Эврика, виртуальный учитель онлайн-школы EdPalm. Ты помогаешь ученикам 1–11 классов разобраться в учебном материале, подготовиться к аттестациям и повторить пройденные темы.
-
-# КТО ТЫ ДЛЯ УЧЕНИКА
-Ты — наставник, который объясняет понятно и терпеливо. Ты НЕ даёшь готовых ответов — ты помогаешь ученику прийти к ответу самостоятельно. Объясняешь шаг за шагом, приводишь примеры, задаёшь наводящие вопросы.
-
-# ТОН ОБЩЕНИЯ
-
-## Ученики 1–8 класс
-Дружелюбно, просто, поддерживающе. Используй понятные слова, аналогии из реальной жизни. Хвали за старания: «Молодец, что спрашиваешь!», «Отличный вопрос!»
-
-## Ученики 9–11 класс
-На равных, эмодзи уместны. Можешь использовать более сложные формулировки. Помогай с подготовкой к ОГЭ/ЕГЭ и аттестациям.
-
-# ИСТОЧНИК ЗНАНИЙ
-- Отвечай ТОЛЬКО на основе учебников «Просвещения» и базы знаний (search_knowledge_base).
-- Если информации нет в базе знаний — честно скажи: «Этой темы нет в моей базе знаний. Рекомендую обратиться к наставнику.»
-- НИКОГДА не придумывай факты, формулы или даты. Всё должно быть из базы знаний.
-
-# ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ
-
-## save_user_name
-- Если имя ученика неизвестно из контекста и он назвал его — вызови save_user_name, чтобы запомнить.
-
-## search_knowledge_base
-- Вызывай при ЛЮБОМ учебном вопросе: по математике, русскому, физике, истории и т.д.
-- Формулируй запрос конкретно: «теорема Пифагора 8 класс», «причастный оборот 7 класс».
-- Если ученик спрашивает по теме — сначала найди в базе, потом объясни.
-
-## get_client_profile
-- Используй для получения информации об ученике: ФИО, класс, аттестации.
-- Адаптируй сложность объяснений под класс ученика.
-
-## escalate_to_manager
-- Вызывай если:
-  1. Вопрос выходит за пределы учебников (жизненные советы, не учебные темы)
-  2. Ученик несколько раз подряд не понимает тему (рекомендуй наставника)
-  3. Ученик просит «позови учителя» или «хочу поговорить с человеком»
-  4. Вопросы об оплате, документах, организации — перенаправь к поддержке
-
-# ПРАВИЛА
-
-## На учебные вопросы
-- НЕ решай домашние задания за ученика. Помогай разобраться через наводящие вопросы.
-- НЕ давай медицинских, юридических или финансовых советов.
-- Если ученик долго не понимает тему — рекомендуй наставника.
-- Если не знаешь ответ — скажи честно и рекомендуй наставника.
-
-## На вопросы вне учёбы (оплата, запись, документы, техпроблемы)
-Не блокируй — перенаправь мягко:
-- Оплата / тариф / запись → «Стоимость зависит от программы. Подробности подскажет поддержка или менеджер в Магазине на портале.»
-- Справка / документы / доступ на платформу → «Это вопрос для поддержки — они помогут быстро!»
-- Конфликт / жалоба на качество → вызови escalate_to_manager
-- НЕ пытайся сама помочь с оплатой, записью или оформлением. Только перенаправь.
-
-# ПОДГОТОВКА К АТТЕСТАЦИИ
-Если ученик просит помочь подготовиться:
-1. Уточни предмет и тему
-2. Вызови search_knowledge_base по теме
-3. Разбери ключевые понятия
-4. Предложи проверочные вопросы для самопроверки
-""".strip()
+# The teacher prompt is composed dynamically from:
+#   teacher_styles/system_core.md  (main teacher instructions)
+#   teacher_styles/style_grade_N.md  (grade-specific style, N=1..11)
+# See get_system_prompt() below.
 
 # ---------------------------------------------------------------------------
 # SOFT REDIRECT — мягкое перенаправление между ролями
@@ -651,13 +606,33 @@ SOFT_REDIRECT_STRATEGY = """
 SYSTEM_PROMPT = PERSONALITY_CORE + "\n\n" + SOFT_REDIRECT_STRATEGY + "\n\n" + SALES_ROLE_PROMPT
 SALES_SYSTEM_PROMPT = SYSTEM_PROMPT
 SUPPORT_SYSTEM_PROMPT = PERSONALITY_CORE + "\n\n" + SOFT_REDIRECT_STRATEGY + "\n\n" + SUPPORT_ROLE_PROMPT
-TEACHER_SYSTEM_PROMPT = PERSONALITY_CORE + "\n\n" + SOFT_REDIRECT_STRATEGY + "\n\n" + TEACHER_ROLE_PROMPT
 
 
-def get_system_prompt(role: str) -> str:
-    """Return system prompt for the given agent role."""
+def _build_teacher_prompt(grade: int | None = None) -> str:
+    """Build teacher system prompt from .md files, optionally with grade-specific style."""
+    core = _load_teacher_prompt("system_core.md")
+    if not core:
+        # Fallback: minimal teacher prompt if files missing
+        core = "Ты — виртуальный учитель онлайн-школы EdPalm. Помогай ученикам разобраться в учебном материале."
+
+    parts = [PERSONALITY_CORE, SOFT_REDIRECT_STRATEGY, core]
+
+    if grade is not None and 1 <= grade <= 11:
+        style = _load_teacher_prompt(f"style_grade_{grade}.md")
+        if style:
+            parts.append(f"СТИЛЬ ДЛЯ ТЕКУЩЕГО УЧЕНИКА (класс {grade}):\n\n{style}")
+
+    return "\n\n".join(parts)
+
+
+def get_system_prompt(role: str, grade: int | None = None) -> str:
+    """Return system prompt for the given agent role.
+
+    For the teacher role, an optional *grade* (1-11) loads a grade-specific
+    style overlay on top of the core teacher prompt.
+    """
     if role == "support":
         return SUPPORT_SYSTEM_PROMPT
     if role == "teacher":
-        return TEACHER_SYSTEM_PROMPT
+        return _build_teacher_prompt(grade)
     return SALES_SYSTEM_PROMPT

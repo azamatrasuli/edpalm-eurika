@@ -495,6 +495,7 @@ class ChatService:
             conversation_id=conversation_id,
             agent_role=agent_role,
             repo=self.repo,
+            actor_metadata=actor.metadata,
         )
 
         # Load onboarding profile context for LLM

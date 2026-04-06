@@ -546,6 +546,7 @@ class ToolExecutor:
         conversation_id: str | None = None,
         agent_role: str = "sales",
         repo: ConversationRepository | None = None,
+        actor_metadata: dict | None = None,
     ) -> None:
         self.crm = amocrm_client or AmoCRMClient()
         self.dms = get_dms_service()
@@ -555,6 +556,7 @@ class ToolExecutor:
         self.repo = repo or ConversationRepository()
         self.events = EventTracker()
         self.funnel = FunnelService(repo=self.repo, crm=self.crm)
+        self.actor_metadata = actor_metadata or {}
 
     _SAFE_ARG_KEYS = frozenset({
         "query", "product_name", "grade", "amount", "reason",
@@ -601,29 +603,44 @@ class ToolExecutor:
         return ToolResult(name="save_user_name", result=f"Имя '{clean_name}' сохранено в профиле.")
 
     def _tool_search_knowledge_base(self, query: str) -> ToolResult:
+        settings = get_settings()
+
         # Auto-advance funnel to "info_gathering" on first KB search in sales
         if self.agent_role == "sales" and self.conversation_id:
             current = self.funnel.get_current_stage(self.conversation_id)
             if current == "new":
                 self.funnel.advance_stage(self.conversation_id, None, "info_gathering", force=True)
 
-        chunks = search_knowledge_base(query, namespace=self.agent_role)
+        # Teacher: use grade filtering and stricter threshold
+        search_grade = None
+        search_threshold = None
+        if self.agent_role == "teacher":
+            g = self.actor_metadata.get("grade")
+            if g is not None:
+                try:
+                    search_grade = int(g)
+                except (ValueError, TypeError):
+                    pass
+            search_threshold = settings.rag_similarity_threshold_teacher
+
+        chunks = search_knowledge_base(
+            query, namespace=self.agent_role,
+            grade=search_grade, threshold=search_threshold,
+        )
 
         # Shared fallback: if primary results are weak, search "shared" namespace
-        # Teacher is excluded — its prompt prohibits discussing pricing/enrollment
+        # Teacher is excluded — its prompt handles fallback differently
         primary_weak = len(chunks) < 3 or (chunks and all(c.similarity < 0.45 for c in chunks))
         if primary_weak and self.agent_role in ("sales", "support"):
             shared_chunks = search_knowledge_base(
                 query, namespace="shared", threshold=0.5,
             )
             if shared_chunks:
-                # Mark shared chunks so LLM knows the source
                 for sc in shared_chunks:
                     sc.source = f"[общая] {sc.source}"
                 chunks.extend(shared_chunks)
-                # Re-sort by similarity, keep top_k
                 chunks.sort(key=lambda c: c.similarity, reverse=True)
-                chunks = chunks[:get_settings().rag_top_k]
+                chunks = chunks[:settings.rag_top_k]
                 logger.info(
                     "RAG shared fallback: role=%s query=%r primary=%d shared=%d",
                     self.agent_role, query[:60], len(chunks) - len(shared_chunks), len(shared_chunks),
@@ -633,18 +650,49 @@ class ToolExecutor:
             self.events.track_rag_miss(
                 self.conversation_id, self.actor_id or "", query, self.agent_role,
             )
+            # Teacher: graceful fallback — answer from knowledge, no "not found" message
+            if self.agent_role == "teacher":
+                return ToolResult(
+                    name="search_knowledge_base",
+                    result=(
+                        "По этому вопросу учебник не передан — отвечай из своих знаний "
+                        "как опытный учитель. Придерживайся школьной программы."
+                    ),
+                )
             return ToolResult(
                 name="search_knowledge_base",
                 result="В базе знаний не найдено релевантной информации по запросу: " + query,
             )
+
+        # Teacher: enforce context char limit
+        if self.agent_role == "teacher":
+            max_chars = settings.rag_context_max_chars_teacher
+            total = 0
+            limited = []
+            for chunk in chunks:
+                total += len(chunk.content)
+                if total > max_chars:
+                    break
+                limited.append(chunk)
+            chunks = limited or chunks[:1]  # at least 1 chunk
+
         parts = []
         for i, chunk in enumerate(chunks, 1):
-            source_label = chunk.source.replace(".md", "") if chunk.source else "unknown"
-            parts.append(
-                f"[{i}] Источник: {source_label} | Раздел: {chunk.section} | "
-                f"Релевантность: {chunk.similarity}\n{chunk.content}"
-            )
+            if self.agent_role == "teacher" and chunk.subject:
+                # Enriched format for teacher: subject + book title
+                book = chunk.book_title or ""
+                parts.append(
+                    f"[{i}] {chunk.subject} | {book} | "
+                    f"Релевантность: {chunk.similarity}\n{chunk.content}"
+                )
+            else:
+                source_label = chunk.source.replace(".md", "") if chunk.source else "unknown"
+                parts.append(
+                    f"[{i}] Источник: {source_label} | Раздел: {chunk.section} | "
+                    f"Релевантность: {chunk.similarity}\n{chunk.content}"
+                )
         result = "\n---\n".join(parts)
+
         # Warn LLM if all chunks have very low relevance
         if all(c.similarity < 0.35 for c in chunks):
             result = (

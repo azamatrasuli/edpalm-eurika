@@ -252,8 +252,17 @@ class LLMService:
         tool_defs = get_tool_definitions(agent_role)
 
         # Build system messages
+        _grade = None
+        if agent_role == "teacher":
+            _meta = actor.metadata or {}
+            _g = _meta.get("grade")
+            if _g is not None:
+                try:
+                    _grade = int(_g)
+                except (ValueError, TypeError):
+                    pass
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": get_system_prompt(agent_role)},
+            {"role": "system", "content": get_system_prompt(agent_role, grade=_grade)},
             {"role": "system", "content": self._identity_context(actor)},
         ]
         if profile_context:

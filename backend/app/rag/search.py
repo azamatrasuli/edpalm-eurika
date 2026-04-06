@@ -1,4 +1,4 @@
-"""RAG retrieval: embed query → cosine similarity search in pgvector."""
+"""RAG retrieval: embed query -> cosine similarity search in pgvector."""
 
 from __future__ import annotations
 
@@ -21,6 +21,9 @@ class KBChunk:
     section: str
     source: str
     similarity: float
+    subject: str | None = None
+    book_title: str | None = None
+    grade: int | None = None
 
 
 class KnowledgeSearch:
@@ -34,7 +37,7 @@ class KnowledgeSearch:
         from openai import RateLimitError
         from app.services.openai_client import is_quota_error, switch_to_fallback, get_openai_client
 
-        # PII: regex-scan text before sending to OpenAI embeddings (152-ФЗ)
+        # PII: regex-scan text before sending to OpenAI embeddings (152-FZ)
         try:
             if self.settings.pii_proxy_enabled:
                 from app.services.pii_proxy import PiiMap, scan_and_extend
@@ -70,11 +73,13 @@ class KnowledgeSearch:
         top_k: int | None = None,
         threshold: float | None = None,
         namespace: str | None = None,
+        grade: int | None = None,
     ) -> list[KBChunk]:
         """Search knowledge base by semantic similarity.
 
         Returns list of KBChunk sorted by relevance (highest first).
         If namespace is provided, only chunks with that namespace are searched.
+        If grade is provided (teacher role), filters chunks by grade range.
         """
         if not self.client or not has_pool():
             return []
@@ -95,10 +100,29 @@ class KnowledgeSearch:
                 if conn is None:
                     return []
                 with conn.cursor() as cur:
-                    if namespace:
+                    emb_str = str(embedding)
+
+                    if namespace and grade is not None:
+                        # Teacher with grade filtering
                         cur.execute(
                             """
                             SELECT content, section, source,
+                                   subject, book_title, grade,
+                                   1 - (embedding <=> %s::vector) AS similarity
+                            FROM knowledge_chunks
+                            WHERE 1 - (embedding <=> %s::vector) > %s
+                              AND namespace = %s
+                              AND (grade IS NULL OR (%s BETWEEN grade AND grade_to))
+                            ORDER BY embedding <=> %s::vector
+                            LIMIT %s
+                            """,
+                            (emb_str, emb_str, threshold, namespace, grade, emb_str, top_k),
+                        )
+                    elif namespace:
+                        cur.execute(
+                            """
+                            SELECT content, section, source,
+                                   subject, book_title, grade,
                                    1 - (embedding <=> %s::vector) AS similarity
                             FROM knowledge_chunks
                             WHERE 1 - (embedding <=> %s::vector) > %s
@@ -106,19 +130,20 @@ class KnowledgeSearch:
                             ORDER BY embedding <=> %s::vector
                             LIMIT %s
                             """,
-                            (str(embedding), str(embedding), threshold, namespace, str(embedding), top_k),
+                            (emb_str, emb_str, threshold, namespace, emb_str, top_k),
                         )
                     else:
                         cur.execute(
                             """
                             SELECT content, section, source,
+                                   subject, book_title, grade,
                                    1 - (embedding <=> %s::vector) AS similarity
                             FROM knowledge_chunks
                             WHERE 1 - (embedding <=> %s::vector) > %s
                             ORDER BY embedding <=> %s::vector
                             LIMIT %s
                             """,
-                            (str(embedding), str(embedding), threshold, str(embedding), top_k),
+                            (emb_str, emb_str, threshold, emb_str, top_k),
                         )
                     rows = cur.fetchall()
 
@@ -128,6 +153,9 @@ class KnowledgeSearch:
                     section=row["section"] or "",
                     source=row["source"],
                     similarity=round(float(row["similarity"]), 4),
+                    subject=row.get("subject"),
+                    book_title=row.get("book_title"),
+                    grade=row.get("grade"),
                 )
                 for row in rows
             ]
@@ -146,6 +174,7 @@ def search_knowledge_base(
     top_k: int | None = None,
     threshold: float | None = None,
     namespace: str | None = None,
+    grade: int | None = None,
 ) -> list[KBChunk]:
     """Convenience function: search KB with singleton instance."""
-    return _get_searcher().search(query, top_k=top_k, threshold=threshold, namespace=namespace)
+    return _get_searcher().search(query, top_k=top_k, threshold=threshold, namespace=namespace, grade=grade)

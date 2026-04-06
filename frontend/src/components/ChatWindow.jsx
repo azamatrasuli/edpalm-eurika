@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { OnboardingMessage } from './OnboardingMessage'
 
 function LoadingSpinner() {
@@ -138,7 +141,7 @@ export function ChatWindow({ messages, avatarProps, typing, toolStatus, loading,
                     {message.toolStatus}
                   </div>
                 ) : message.role === 'assistant' ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
                     {message.content}
                   </ReactMarkdown>
                 ) : (

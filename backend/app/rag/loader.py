@@ -216,6 +216,38 @@ class Chunk:
     metadata: dict = field(default_factory=dict)
     file_source: str = ""
     namespace: str = "sales"
+    grade: int | None = None
+    grade_to: int | None = None
+    subject: str | None = None
+    book_title: str | None = None
+
+
+def _parse_yaml_frontmatter(text: str) -> tuple[dict, str]:
+    """Extract YAML front-matter from markdown text.
+
+    Returns (metadata_dict, remaining_text).
+    If no front-matter found, returns ({}, original_text).
+    """
+    if not text.startswith("---"):
+        return {}, text
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return {}, text
+    meta_block = parts[1].strip()
+    remaining = parts[2]
+    meta = {}
+    for line in meta_block.split("\n"):
+        line = line.strip()
+        if ":" in line:
+            key, _, value = line.partition(":")
+            value = value.strip()
+            # Try int conversion
+            try:
+                value = int(value)
+            except (ValueError, TypeError):
+                pass
+            meta[key.strip()] = value
+    return meta, remaining
 
 
 def chunk_sections(
@@ -286,18 +318,36 @@ def embed_texts(texts: list[str], client: OpenAI, model: str, batch_size: int = 
 
 # --- Database storage ------------------------------------------------------------
 
-def store_chunks(chunks: list[Chunk], embeddings: list[list[float]], database_url: str, namespace: str = "sales") -> int:
-    """Delete old data for the given namespace and insert new chunks with embeddings."""
+def store_chunks(
+    chunks: list[Chunk],
+    embeddings: list[list[float]],
+    database_url: str,
+    namespace: str = "sales",
+    subject_filter: str | None = None,
+) -> int:
+    """Delete old data for the given namespace and insert new chunks with embeddings.
+
+    If subject_filter is provided, only deletes chunks for that subject within
+    the namespace (useful for incremental teacher KB loading by subject).
+    """
     with psycopg.connect(database_url) as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM knowledge_chunks WHERE namespace = %s", (namespace,))
+            if subject_filter:
+                cur.execute(
+                    "DELETE FROM knowledge_chunks WHERE namespace = %s AND subject = %s",
+                    (namespace, subject_filter),
+                )
+            else:
+                cur.execute("DELETE FROM knowledge_chunks WHERE namespace = %s", (namespace,))
 
             for chunk, emb in zip(chunks, embeddings):
                 meta = {**chunk.metadata, "file_source": chunk.file_source}
                 cur.execute(
                     """
-                    INSERT INTO knowledge_chunks (source, section, chunk_index, content, metadata, embedding, namespace)
-                    VALUES (%s, %s, %s, %s, %s::jsonb, %s::vector, %s)
+                    INSERT INTO knowledge_chunks
+                        (source, section, chunk_index, content, metadata, embedding, namespace,
+                         grade, grade_to, subject, book_title)
+                    VALUES (%s, %s, %s, %s, %s::jsonb, %s::vector, %s, %s, %s, %s, %s)
                     """,
                     (
                         chunk.source,
@@ -307,6 +357,10 @@ def store_chunks(chunks: list[Chunk], embeddings: list[list[float]], database_ur
                         json.dumps(meta),
                         str(emb),
                         namespace,
+                        chunk.grade,
+                        chunk.grade_to,
+                        chunk.subject,
+                        chunk.book_title,
                     ),
                 )
         conn.commit()
@@ -327,6 +381,15 @@ def main() -> None:
         "--dir",
         default=None,
         help="Path to knowledge base directory (default: auto-detect)",
+    )
+    # Teacher-specific overrides (take precedence over YAML front-matter)
+    parser.add_argument("--grade", type=int, default=None, help="Override grade (1-11)")
+    parser.add_argument("--grade-to", type=int, default=None, help="Override grade_to (1-11)")
+    parser.add_argument("--subject", type=str, default=None, help="Override subject name")
+    parser.add_argument("--book-title", type=str, default=None, help="Override book title")
+    parser.add_argument(
+        "--subject-filter", type=str, default=None,
+        help="Only delete/replace chunks for this subject (incremental loading)",
     )
     args = parser.parse_args()
     namespace: str = args.namespace
@@ -356,7 +419,8 @@ def main() -> None:
             sys.exit(1)
         kb_files = [kb_file]
     else:
-        kb_files = sorted(kb_dir.glob("*.md"))
+        # Recursive glob — supports subdirectories (e.g., teacher KB by subject)
+        kb_files = sorted(kb_dir.rglob("*.md"))
         if not kb_files:
             print(f"ERROR: No .md files found in {kb_dir}")
             sys.exit(1)
@@ -367,8 +431,26 @@ def main() -> None:
     # Parse → chunk all files
     all_chunks: list[Chunk] = []
     for kb_path in kb_files:
-        print(f"\nLoading: {kb_path.name}")
+        print(f"\nLoading: {kb_path.relative_to(kb_dir) if kb_dir.exists() else kb_path.name}")
         raw_text = kb_path.read_text(encoding="utf-8")
+
+        # Parse YAML front-matter (if present)
+        front_matter, raw_text = _parse_yaml_frontmatter(raw_text)
+        file_grade = args.grade or front_matter.get("grade")
+        file_grade_to = args.grade_to or front_matter.get("grade_to") or file_grade
+        file_subject = args.subject or front_matter.get("subject")
+        file_book_title = args.book_title or front_matter.get("book_title")
+
+        if file_grade is not None:
+            try:
+                file_grade = int(file_grade)
+            except (ValueError, TypeError):
+                file_grade = None
+        if file_grade_to is not None:
+            try:
+                file_grade_to = int(file_grade_to)
+            except (ValueError, TypeError):
+                file_grade_to = file_grade
 
         sections = parse_markdown(raw_text)
         print(f"  Sections: {len(sections)}")
@@ -376,7 +458,17 @@ def main() -> None:
         chunks = chunk_sections(sections, file_source=kb_path.name)
         for chunk in chunks:
             chunk.namespace = namespace
+            chunk.grade = file_grade
+            chunk.grade_to = file_grade_to
+            chunk.subject = file_subject
+            chunk.book_title = file_book_title
+            # For teacher: use subject as source if no better mapping exists
+            if namespace == "teacher" and chunk.source == "general" and file_subject:
+                chunk.source = file_subject
+
         print(f"  Chunks: {len(chunks)}")
+        if file_subject:
+            print(f"  Subject: {file_subject}, Grade: {file_grade}-{file_grade_to}")
         all_chunks.extend(chunks)
 
     print(f"\nTotal chunks across all files: {len(all_chunks)}")
@@ -390,7 +482,10 @@ def main() -> None:
     print(f"Embeddings generated: {len(embeddings)}")
 
     # Store
-    count = store_chunks(all_chunks, embeddings, settings.database_url, namespace=namespace)
+    count = store_chunks(
+        all_chunks, embeddings, settings.database_url,
+        namespace=namespace, subject_filter=args.subject_filter,
+    )
     print(f"Stored in DB: {count} chunks (namespace={namespace})")
     print("Done.")
 

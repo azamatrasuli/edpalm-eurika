@@ -39,6 +39,7 @@ class PortalUserContext:
     user_id: int
     fio: str | None = None
     phone: str | None = None
+    email: str | None = None
     avatar: str | None = None
     moodle_id: int | None = None
     grade: int | None = None
@@ -93,6 +94,7 @@ class PortalClient:
                 user_id=data["user_id"],
                 fio=data.get("fio"),
                 phone=data.get("phone"),
+                email=data.get("email"),
                 avatar=data.get("avatar"),
                 moodle_id=data.get("moodle_id"),
                 grade=data.get("grade"),

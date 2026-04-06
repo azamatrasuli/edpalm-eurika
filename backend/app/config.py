@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     rag_top_k: int = Field(default=5, alias="RAG_TOP_K")
     rag_similarity_threshold: float = Field(default=0.3, alias="RAG_SIMILARITY_THRESHOLD")
+    rag_similarity_threshold_teacher: float = Field(default=0.5, alias="RAG_SIMILARITY_THRESHOLD_TEACHER")
+    rag_context_max_chars_teacher: int = Field(default=14000, alias="RAG_CONTEXT_MAX_CHARS_TEACHER")
 
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
 

@@ -1000,6 +1000,7 @@ class ConversationRepository:
         avatar: str | None = None,
         portal_role: int | None = None,
         is_minor: bool | None = None,
+        email: str | None = None,
     ) -> str | None:
         """Upsert user profile. Returns profile id."""
         children = children or []
@@ -1015,8 +1016,8 @@ class ConversationRepository:
                               (actor_id, client_type, user_role, phone, phone_raw,
                                fio, grade, children, dms_verified, dms_contact_id,
                                dms_data, verification_status,
-                               avatar, portal_role, is_minor)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                               avatar, portal_role, is_minor, email)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (actor_id) DO UPDATE SET
                               client_type = EXCLUDED.client_type,
                               user_role = EXCLUDED.user_role,
@@ -1031,14 +1032,15 @@ class ConversationRepository:
                               verification_status = EXCLUDED.verification_status,
                               avatar = COALESCE(EXCLUDED.avatar, agent_user_profiles.avatar),
                               portal_role = COALESCE(EXCLUDED.portal_role, agent_user_profiles.portal_role),
-                              is_minor = COALESCE(EXCLUDED.is_minor, agent_user_profiles.is_minor)
+                              is_minor = COALESCE(EXCLUDED.is_minor, agent_user_profiles.is_minor),
+                              email = COALESCE(EXCLUDED.email, agent_user_profiles.email)
                             RETURNING id
                             """,
                             (
                                 actor_id, client_type, user_role, phone, phone_raw,
                                 fio, grade, Json(children), dms_verified, dms_contact_id,
                                 Json(dms_data) if dms_data else None, verification_status,
-                                avatar, portal_role, is_minor,
+                                avatar, portal_role, is_minor, email,
                             ),
                         )
                         row = cur.fetchone()
@@ -1062,7 +1064,7 @@ class ConversationRepository:
                         SELECT id, actor_id, display_name, client_type, user_role,
                                phone, fio, grade, children, dms_verified,
                                dms_contact_id, dms_data, verification_status,
-                               avatar, portal_role, is_minor
+                               avatar, portal_role, is_minor, email
                         FROM agent_user_profiles
                         WHERE actor_id = %s
                         """,

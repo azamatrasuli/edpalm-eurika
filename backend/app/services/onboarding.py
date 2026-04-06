@@ -64,6 +64,7 @@ class OnboardingService:
         portal_role = meta.get("user_role")    # int: 3=parent, 4=student, 5=guest
         is_minor = meta.get("is_minor")        # bool from JWT
         avatar = meta.get("avatar")            # portal avatar URL (internal)
+        email = meta.get("email")              # email from JWT
 
         # Enrich from portal internal API (server-to-server, no PII in URL)
         portal_ctx = self._fetch_portal_context(actor)
@@ -76,6 +77,12 @@ class OnboardingService:
                 self.repo.update_profile_display_name(actor.actor_id, portal_ctx.fio)
             if portal_ctx.avatar:
                 avatar = portal_ctx.avatar
+            if portal_ctx.email:
+                email = portal_ctx.email
+
+        # Email fallback: DMS
+        if not email and dms_result and dms_result.contact.email:
+            email = dms_result.contact.email
 
         # Save profile
         profile_id = self.repo.save_user_profile(
@@ -94,6 +101,7 @@ class OnboardingService:
             avatar=avatar,
             portal_role=portal_role if isinstance(portal_role, int) else None,
             is_minor=is_minor if isinstance(is_minor, bool) else None,
+            email=email,
         )
 
         logger.info("Onboarding result: status=%s profile_id=%s", status, profile_id)
@@ -123,6 +131,7 @@ class OnboardingService:
         dms_data = self._build_dms_data(dms_result)
 
         meta = actor_meta or {}
+        profile_email = meta.get("email") or contact.email
         self.repo.save_user_profile(
             actor_id=actor_id,
             client_type="existing",
@@ -139,6 +148,7 @@ class OnboardingService:
             avatar=meta.get("avatar"),
             portal_role=meta.get("user_role") if isinstance(meta.get("user_role"), int) else None,
             is_minor=meta.get("is_minor") if isinstance(meta.get("is_minor"), bool) else None,
+            email=profile_email,
         )
         logger.info("Auto-saved DMS profile for actor=%s", actor_id)
 
@@ -208,6 +218,8 @@ class OnboardingService:
                 profile.children = children
             if ctx.avatar:
                 updates["avatar"] = ctx.avatar
+            if ctx.email:
+                updates["email"] = ctx.email
             if updates:
                 self.repo.enrich_portal_profile(actor_id, updates)
                 logger.info("Portal auto-enrich: actor=%s fields=%s", actor_id, list(updates.keys()))
